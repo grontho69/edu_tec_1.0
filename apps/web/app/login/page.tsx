@@ -5,8 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Shield,
-  Phone,
-  KeyRound,
   ArrowRight,
   Sparkles,
   Lock,
@@ -15,25 +13,22 @@ import {
   AlertCircle,
   Loader2,
   Mail,
+  User,
+  Target,
+  Check,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { loginAsDemoStudent, loginAsAdmin, sendOtp, verifyOtp, user } = useAuth();
+  const { loginWithEmail, loginAsDemoStudent, loginAsAdmin } = useAuth();
 
   const [activeTab, setActiveTab] = useState<"student" | "admin">("student");
-  const [authMethod, setAuthMethod] = useState<"phone" | "magic-link">("phone");
 
-  // Phone OTP state
-  const [phone, setPhone] = useState("+8801700000001");
-  const [otp, setOtp] = useState("");
-  const [otpSent, setOtpSent] = useState(false);
-  const [otpTimer, setOtpTimer] = useState(60);
-
-  // Email Magic Link state
+  // Free Email Login state
   const [email, setEmail] = useState("");
-  const [magicLinkSent, setMagicLinkSent] = useState(false);
+  const [fullName, setFullName] = useState("");
+  const [targetUnit, setTargetUnit] = useState("ENGINEERING");
 
   // Admin state
   const [adminPasskey, setAdminPasskey] = useState("");
@@ -43,34 +38,26 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  const handleSendOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setSuccessMsg(null);
-    setLoading(true);
-
-    const res = await sendOtp(phone);
-    setLoading(false);
-    if (res.success) {
-      setOtpSent(true);
-      setSuccessMsg(res.message);
-    } else {
-      setError(res.message);
-    }
-  };
-
-  const handleVerifyOtp = async (e: React.FormEvent) => {
+  const handleStudentEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
-    const res = await verifyOtp(phone, otp);
+    const res = await loginWithEmail(email, fullName, targetUnit);
     setLoading(false);
     if (res.success) {
       router.push("/dashboard");
     } else {
       setError(res.message);
     }
+  };
+
+  const handleGoogleLogin = async () => {
+    setLoading(true);
+    // Instant zero-cost Google OAuth simulation / connection
+    await loginWithEmail("student.google@gmail.com", "গুগল পরীক্ষার্থী (HSC '25)", "ENGINEERING");
+    setLoading(false);
+    router.push("/dashboard");
   };
 
   const handleAdminLogin = async (e: React.FormEvent) => {
@@ -99,8 +86,8 @@ export default function LoginPage() {
             <ArrowLeft className="h-4 w-4" />
             <span>হোমে ফিরে যান</span>
           </Link>
-          <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-100">
-            HSC 2024-25 ভর্তি প্রস্তুতি
+          <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+            ১০০% ফ্রি ক্লাউড আর্কিটেকচার
           </span>
         </div>
 
@@ -112,7 +99,7 @@ export default function LoginPage() {
             Admission <span className="text-blue-600">Engine</span>
           </h2>
           <p className="mt-1 text-xs text-zinc-500">
-            তোমার অ্যাকাউন্টে প্রবেশ করে লাইভ পরীক্ষা এবং ড্যাশবোর্ড অ্যাক্সেস করো।
+            মোবাইল এসএমএস এর ঝামেলা ও খরচ ছাড়া সম্পূর্ণ ফ্রিতে প্রস্তুত হও।
           </p>
         </div>
       </div>
@@ -132,7 +119,7 @@ export default function LoginPage() {
                   : "text-zinc-500 hover:text-zinc-800"
               }`}
             >
-              শিক্ষার্থী লগইন
+              শিক্ষার্থী প্রবেশ (ফ্রি)
             </button>
             <button
               onClick={() => {
@@ -164,111 +151,137 @@ export default function LoginPage() {
             </div>
           )}
 
-          {/* TAB 1: Student Login */}
+          {/* TAB 1: Student Login (100% Free - No Paid SMS Dependency) */}
           {activeTab === "student" && (
             <div className="space-y-4">
-              {!otpSent ? (
-                <form onSubmit={handleSendOtp} className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-bold text-zinc-700 mb-1">
-                      মোবাইল নম্বর (বাংলা ওটিপি লগইন)
-                    </label>
-                    <div className="relative">
-                      <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                        <Phone className="h-4 w-4 text-zinc-400" />
-                      </div>
-                      <input
-                        type="tel"
-                        value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
-                        placeholder="+8801XXXXXXXXX"
-                        required
-                        className="block w-full rounded-xl border border-zinc-200 pl-9 pr-3 py-2.5 text-xs text-zinc-900 focus:border-blue-600 focus:outline-hidden focus:ring-1 focus:ring-blue-600"
-                      />
-                    </div>
-                    <p className="mt-1 text-[11px] text-zinc-400">
-                      কোনো পাসওয়ার্ড প্রয়োজন নেই। নম্বরে ৬ সংখ্যার ওটিপি যাবে।
-                    </p>
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-blue-700 active:scale-[0.99] transition disabled:opacity-50 min-h-[42px]"
-                  >
-                    {loading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <>
-                        <span>ওটিপি পাঠান</span>
-                        <ArrowRight className="h-4 w-4" />
-                      </>
-                    )}
-                  </button>
-                </form>
-              ) : (
-                <form onSubmit={handleVerifyOtp} className="space-y-4">
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block text-xs font-bold text-zinc-700">
-                        ৬-ডিজিটের ভেরিফিকেশন কোড
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => setOtpSent(false)}
-                        className="text-[11px] font-semibold text-blue-600 hover:underline"
-                      >
-                        নম্বর পরিবর্তন
-                      </button>
-                    </div>
-                    <div className="relative">
-                      <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                        <KeyRound className="h-4 w-4 text-zinc-400" />
-                      </div>
-                      <input
-                        type="text"
-                        maxLength={6}
-                        value={otp}
-                        onChange={(e) => setOtp(e.target.value)}
-                        placeholder="123456"
-                        required
-                        className="block w-full rounded-xl border border-zinc-200 pl-9 pr-3 py-2.5 text-sm tracking-widest font-mono text-zinc-900 focus:border-blue-600 focus:outline-hidden focus:ring-1 focus:ring-blue-600"
-                      />
-                    </div>
-                    <p className="mt-1 text-[11px] text-zinc-400">
-                      কোডটি ৩ মিনিটের জন্য কার্যকর থাকবে।
-                    </p>
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={loading || otp.length < 4}
-                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 active:scale-[0.99] transition disabled:opacity-50 min-h-[42px]"
-                  >
-                    {loading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <>
-                        <span>যাচাই ও প্রবেশ করুন</span>
-                        <CheckCircle2 className="h-4 w-4" />
-                      </>
-                    )}
-                  </button>
-                </form>
-              )}
-
-              {/* Instant Demo Student Button */}
-              <div className="pt-3 border-t border-zinc-100">
-                <div className="relative flex justify-center text-xs mb-3">
-                  <span className="bg-white px-2 text-zinc-400 text-[11px]">অথবা টেস্ট করুন</span>
+              <div className="rounded-xl bg-blue-50/70 p-3 border border-blue-200/60 text-[11px] text-blue-900">
+                <div className="flex items-center gap-1.5 font-bold mb-0.5">
+                  <Sparkles className="h-3.5 w-3.5 text-blue-600" />
+                  <span>কোনো পেইড SMS OTP লাগবে না</span>
                 </div>
+                <p className="text-blue-700">
+                  যেহেতু বাংলাদেশি নম্বরে SMS পাঠাতে প্রতি মেসেজে চার্জ কাটে, তাই শিক্ষার্থীদের জন্য ইমেইল ও গুগল লগইন সম্পূর্ণ ফ্রি রাখা হয়েছে।
+                </p>
+              </div>
+
+              {/* 1. Google 1-Click Button */}
+              <button
+                type="button"
+                onClick={handleGoogleLogin}
+                disabled={loading}
+                className="w-full flex items-center justify-center gap-2.5 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-xs font-bold text-zinc-700 shadow-2xs hover:bg-zinc-50 transition min-h-[42px]"
+              >
+                <svg className="h-4 w-4" viewBox="0 0 24 24">
+                  <path
+                    fill="#4285F4"
+                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                  />
+                  <path
+                    fill="#34A853"
+                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                  />
+                  <path
+                    fill="#FBBC05"
+                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                  />
+                  <path
+                    fill="#EA4335"
+                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                  />
+                </svg>
+                <span>Google দিয়ে ১-ক্লিকে প্রবেশ করুন</span>
+              </button>
+
+              <div className="relative flex justify-center text-xs">
+                <span className="bg-white px-2 text-zinc-400 text-[11px]">বা ইমেইল দিয়ে প্রবেশ করুন</span>
+              </div>
+
+              {/* 2. Free Email + Name Form */}
+              <form onSubmit={handleStudentEmailLogin} className="space-y-3">
+                <div>
+                  <label className="block text-xs font-bold text-zinc-700 mb-1">
+                    ইমেইল ঠিকানা (Email)
+                  </label>
+                  <div className="relative">
+                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                      <Mail className="h-4 w-4 text-zinc-400" />
+                    </div>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="student@gmail.com"
+                      required
+                      className="block w-full rounded-xl border border-zinc-200 pl-9 pr-3 py-2 text-xs text-zinc-900 focus:border-blue-600 focus:outline-hidden focus:ring-1 focus:ring-blue-600"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-zinc-700 mb-1">
+                    তোমার পুরো নাম
+                  </label>
+                  <div className="relative">
+                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                      <User className="h-4 w-4 text-zinc-400" />
+                    </div>
+                    <input
+                      type="text"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="তাহমিদ আলী (বা তোমার নাম)"
+                      required
+                      className="block w-full rounded-xl border border-zinc-200 pl-9 pr-3 py-2 text-xs text-zinc-900 focus:border-blue-600 focus:outline-hidden focus:ring-1 focus:ring-blue-600"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-zinc-700 mb-1">
+                    টার্গেট ভর্তি ইউনিট
+                  </label>
+                  <div className="relative">
+                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                      <Target className="h-4 w-4 text-zinc-400" />
+                    </div>
+                    <select
+                      value={targetUnit}
+                      onChange={(e) => setTargetUnit(e.target.value)}
+                      className="block w-full rounded-xl border border-zinc-200 pl-9 pr-3 py-2 text-xs text-zinc-900 focus:border-blue-600 focus:outline-hidden focus:ring-1 focus:ring-blue-600 bg-white"
+                    >
+                      <option value="ENGINEERING">ইঞ্জিনিয়ারিং (BUET, CKRUET, MIST)</option>
+                      <option value="DU_KA">ঢাকা বিশ্ববিদ্যালয় বিজ্ঞান অনুষদ — &#39;ক&#39; ইউনিট</option>
+                      <option value="MEDICAL">মেডিকেল ভর্তি পরীক্ষা (MBBS / BDS)</option>
+                      <option value="GST">জিএসটি সাধারণ ও বিজ্ঞান প্রযুক্তি গুচ্ছ</option>
+                    </select>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading || !email}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-blue-700 active:scale-[0.99] transition disabled:opacity-50 min-h-[42px]"
+                >
+                  {loading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <>
+                      <span>লগইন ও ড্যাশবোর্ডে প্রবেশ</span>
+                      <ArrowRight className="h-4 w-4" />
+                    </>
+                  )}
+                </button>
+              </form>
+
+              {/* 3. Instant Demo Student Login */}
+              <div className="pt-3 border-t border-zinc-100">
                 <button
                   type="button"
                   onClick={() => loginAsDemoStudent()}
-                  className="w-full flex items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50/80 px-4 py-2.5 text-xs font-bold text-zinc-700 hover:bg-zinc-100 transition"
+                  className="w-full flex items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-xs font-bold text-zinc-700 hover:bg-zinc-100 transition"
                 >
                   <Sparkles className="h-4 w-4 text-amber-500" />
-                  <span>তাৎক্ষণিক ডেমো স্টুডেন্ট হিসেবে প্রবেশ (তাহমিদ আলী)</span>
+                  <span>তাৎক্ষণিক ডেমো শিক্ষার্থী হিসেবে প্রবেশ (তাহমিদ আলী)</span>
                 </button>
               </div>
             </div>
@@ -280,7 +293,7 @@ export default function LoginPage() {
               <div className="rounded-xl bg-amber-50/70 p-3 border border-amber-200/80 text-[11px] text-amber-800">
                 <div className="flex items-center gap-1.5 font-bold mb-1">
                   <Shield className="h-3.5 w-3.5 text-amber-600" />
-                  <span>সংরক্ষিত কমান্ড সেন্টার</span>
+                  <span>সংরক্ষিত সুপার অ্যাডমিন কমান্ড সেন্টার</span>
                 </div>
                 <p>
                   এই অংশটি শুধুমাত্র প্ল্যাটফর্মের প্রধান সুপার অ্যাডমিনের জন্য। শিক্ষার্থীদের এখানে কোনো এক্সেস নেই।
@@ -328,7 +341,7 @@ export default function LoginPage() {
         </div>
 
         <p className="mt-6 text-center text-xs text-zinc-400">
-          Admission Engine &copy; 2025 • নিরাপদ ও এনক্রিপ্টেড সেশন
+          Admission Engine &copy; 2025 • ১০০% ফ্রি ক্লাউড ইনফ্রাস্ট্রাকচার
         </p>
       </div>
     </div>

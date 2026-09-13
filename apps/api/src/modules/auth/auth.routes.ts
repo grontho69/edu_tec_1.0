@@ -97,4 +97,76 @@ export async function authRoutes(app: FastifyInstance, opts: AuthRoutesOptions) 
       user: demoStudent,
     });
   });
+
+  // 7. 100% Free Zero-Cost Student Email Login & Instant Registration
+  app.post("/auth/student-email-login", async (req, rep) => {
+    const body = req.body as { email?: string; fullName?: string; targetUnit?: string } | undefined;
+    const rawEmail = body?.email?.toLowerCase().trim();
+    if (!rawEmail || !rawEmail.includes("@")) {
+      return rep.status(400).send({
+        success: false,
+        message: "একটি সঠিক ইমেইল ঠিকানা প্রদান করুন।",
+      });
+    }
+
+    const { users, userAnalytics } = await import("@admission-engine/database");
+    const { eq } = await import("drizzle-orm");
+    const { defaultJwtService } = await import("./jwt.service");
+
+    let [user] = await opts.db
+      .select()
+      .from(users)
+      .where(eq(users.email, rawEmail))
+      .limit(1);
+
+    if (!user) {
+      const studentName = body?.fullName?.trim() || `শিক্ষার্থী (${rawEmail.split("@")[0]})`;
+      const [newUser] = await opts.db
+        .insert(users)
+        .values({
+          tenantId: "DIRECT_B2C",
+          role: "STUDENT",
+          targetUnit: (body?.targetUnit as any) || "ENGINEERING",
+          email: rawEmail,
+          fullName: studentName,
+        })
+        .returning();
+
+      user = newUser!;
+
+      // Dynamic metric seeding
+      await opts.db
+        .insert(userAnalytics)
+        .values({
+          userId: user.id,
+          totalExamsTaken: 0,
+          totalQuestionsAttempted: 0,
+          totalQuestionsCorrect: 0,
+          overallAccuracy: "0.00",
+          totalStudyTimeSeconds: 0,
+          streakDays: 0,
+          lastActiveAt: null,
+        })
+        .onConflictDoNothing();
+    }
+
+    const token = defaultJwtService.sign({
+      userId: user.id,
+      role: user.role,
+      email: user.email,
+    });
+
+    return rep.status(200).send({
+      success: true,
+      message: "সফলভাবে লগইন সম্পন্ন হয়েছে।",
+      token,
+      user: {
+        id: user.id,
+        role: user.role,
+        email: user.email,
+        fullName: user.fullName,
+        targetUnit: user.targetUnit,
+      },
+    });
+  });
 }
