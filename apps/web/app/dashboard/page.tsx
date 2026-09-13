@@ -15,10 +15,14 @@ import {
   Target,
   BarChart3,
   RefreshCw,
+  LogOut,
+  User,
 } from "lucide-react";
 import { fetchDashboardAnalytics } from "@/lib/api-client";
+import { useAuth } from "@/lib/auth-context";
 
 export default function StudentDashboardPage() {
+  const { user, logout } = useAuth();
   const {
     data: analyticsResponse,
     isLoading,
@@ -62,11 +66,33 @@ export default function StudentDashboardPage() {
             </nav>
           </div>
 
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2.5">
             <div className="flex items-center space-x-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-800 border border-amber-200">
               <Flame className="h-4 w-4 text-amber-600" />
               <span>{streakDays} দিন স্ট্রাইক</span>
             </div>
+
+            {user ? (
+              <div className="flex items-center gap-1.5 pl-1 border-l border-zinc-200">
+                <span className="hidden sm:inline-flex text-xs font-semibold text-zinc-700 bg-zinc-100 px-2.5 py-1 rounded-lg">
+                  {user.fullName}
+                </span>
+                <button
+                  onClick={() => logout()}
+                  className="rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-red-600 transition"
+                  title="লগআউট"
+                >
+                  <LogOut className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              <Link
+                href="/login"
+                className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-blue-700"
+              >
+                লগইন
+              </Link>
+            )}
 
             <button
               onClick={() => refetch()}
@@ -84,7 +110,7 @@ export default function StudentDashboardPage() {
         <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl">
-              স্বাগতম, শিক্ষার্থী!
+              স্বাগতম, {user?.fullName || "শিক্ষার্থী"}!
             </h1>
             <p className="text-xs sm:text-sm text-zinc-600 mt-1">
               তোমার প্রস্তুতি ট্র্যাক হচ্ছে ১০০% রিয়েল-টাইম ডাইনামিক ডেটা দিয়ে।

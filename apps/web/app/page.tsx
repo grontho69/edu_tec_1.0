@@ -16,9 +16,14 @@ import {
   User,
   ChevronRight,
   ExternalLink,
+  Lock,
+  LogIn,
+  LogOut,
 } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
 
 export default function LandingPage() {
+  const { user, logout } = useAuth();
   const [selectedUnitFilter, setSelectedUnitFilter] = useState<string>("ALL");
 
   const circulars = [
@@ -109,19 +114,47 @@ export default function LandingPage() {
               লাইভ এক্সাম ফ্রি ট্রায়াল
             </span>
 
-            <Link
-              href="/dashboard"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3.5 py-1.5 text-xs sm:text-sm font-medium text-zinc-700 shadow-xs hover:bg-zinc-50"
-            >
-              <User className="h-4 w-4 text-zinc-500" />
-              <span>তাহমিদ আলী (HSC &apos;25)</span>
-            </Link>
+            {user ? (
+              <div className="flex items-center gap-1.5">
+                <Link
+                  href="/dashboard"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3.5 py-1.5 text-xs sm:text-sm font-medium text-zinc-700 shadow-xs hover:bg-zinc-50"
+                >
+                  <User className="h-4 w-4 text-blue-600" />
+                  <span>{user.fullName}</span>
+                </Link>
+                <button
+                  onClick={() => logout()}
+                  className="rounded-lg border border-zinc-200 bg-white p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 transition"
+                  title="লগআউট"
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Link
+                  href="/login"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3.5 py-1.5 text-xs sm:text-sm font-medium text-zinc-700 shadow-xs hover:bg-zinc-50"
+                >
+                  <LogIn className="h-3.5 w-3.5 text-zinc-500" />
+                  <span>লগইন করুন</span>
+                </Link>
+                <Link
+                  href="/login"
+                  className="hidden sm:inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3.5 py-1.5 text-xs sm:text-sm font-bold text-white shadow-xs hover:bg-blue-700"
+                >
+                  <span>শুরু করুন</span>
+                </Link>
+              </div>
+            )}
 
             <Link
               href="/admin"
-              className="rounded-lg bg-zinc-900 px-3.5 py-1.5 text-xs sm:text-sm font-semibold text-white shadow-sm hover:bg-zinc-800"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-zinc-900 px-3 py-1.5 text-xs sm:text-sm font-semibold text-white shadow-sm hover:bg-zinc-800"
             >
-              অ্যাডমিন পোর্টাল
+              <Lock className="h-3 w-3 text-amber-400" />
+              <span>অ্যাডমিন পোর্টাল</span>
             </Link>
           </div>
         </div>

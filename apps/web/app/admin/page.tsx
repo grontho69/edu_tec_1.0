@@ -19,6 +19,8 @@ import {
   Check,
   ArrowLeft,
   ChevronRight,
+  LogOut,
+  KeyRound,
 } from "lucide-react";
 import {
   adminFetchStudents,
@@ -30,10 +32,26 @@ import {
   adminRejectDraft,
 } from "@/lib/api-client";
 import { LatexRenderer } from "@/components/latex-renderer";
+import { useAuth } from "@/lib/auth-context";
 
 export default function AdminCommandCenterPage() {
   const queryClient = useQueryClient();
+  const { user, isAdmin, loginAsAdmin, logout, isLoading: authLoading } = useAuth();
+  const [adminKeyInput, setAdminKeyInput] = useState("");
+  const [gateError, setGateError] = useState<string | null>(null);
+  const [authenticating, setAuthenticating] = useState(false);
   const [activeTab, setActiveTab] = useState<"students" | "pipeline">("students");
+
+  const handleGateSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setGateError(null);
+    setAuthenticating(true);
+    const res = await loginAsAdmin(adminKeyInput);
+    setAuthenticating(false);
+    if (!res.success) {
+      setGateError(res.message);
+    }
+  };
 
   // Student Oversight State
   const [searchStudent, setSearchStudent] = useState("");
@@ -117,6 +135,100 @@ export default function AdminCommandCenterPage() {
   const drafts = draftsResponse?.data || [];
   const selectedDraft = drafts.find((d: any) => d.id === selectedDraftId) || drafts[0];
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center text-white">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-500 mb-3" />
+        <span className="text-xs text-zinc-400 font-medium">নিরাপদ সেশন যাচাই করা হচ্ছে...</span>
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen bg-zinc-950 text-white flex flex-col justify-center items-center px-4 py-12">
+        <div className="max-w-md w-full">
+          <div className="text-center mb-8">
+            <div className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-red-500/10 border border-red-500/30 text-red-500 mb-4 shadow-lg shadow-red-500/10">
+              <ShieldAlert className="h-8 w-8" />
+            </div>
+            <span className="rounded-full bg-red-500/20 px-3 py-1 text-[11px] font-bold text-red-400 border border-red-500/30 uppercase tracking-wider">
+              RESTRICTED ACCESS
+            </span>
+            <h1 className="text-2xl font-black tracking-tight text-white mt-3">
+              সুপার অ্যাডমিন কমান্ড সেন্টার
+            </h1>
+            <p className="mt-2 text-xs text-zinc-400 leading-relaxed">
+              এই পোর্টালটি শুধুমাত্র প্ল্যাটফর্মের প্রধান অ্যাডমিনিস্ট্রেটরের জন্য সংরক্ষিত। কোনো সাধারণ শিক্ষার্থী বা বহিরাগতদের এখানে প্রবেশের অনুমতি নেই।
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/90 p-6 sm:p-7 shadow-2xl backdrop-blur-xl">
+            {gateError && (
+              <div className="mb-4 rounded-xl bg-red-950/60 border border-red-800/80 p-3 text-xs text-red-200 flex items-start gap-2">
+                <ShieldAlert className="h-4 w-4 shrink-0 mt-0.5 text-red-400" />
+                <span>{gateError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleGateSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-zinc-300 mb-1.5">
+                  মাস্টার সিক্রেট পাসকি (Admin Passkey)
+                </label>
+                <div className="relative">
+                  <input
+                    type="password"
+                    value={adminKeyInput}
+                    onChange={(e) => setAdminKeyInput(e.target.value)}
+                    placeholder="••••••••••••••••"
+                    required
+                    autoFocus
+                    className="w-full rounded-xl border border-zinc-700 bg-zinc-800/80 px-4 py-2.5 text-sm text-white placeholder-zinc-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500 font-mono"
+                  />
+                </div>
+                <p className="mt-1.5 text-[10px] text-zinc-500">
+                  ডিফল্ট পাসকি: <code className="font-mono bg-zinc-800 px-1 py-0.5 rounded text-zinc-300">admin_super_secret_2025</code>
+                </p>
+              </div>
+
+              <button
+                type="submit"
+                disabled={authenticating || !adminKeyInput}
+                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-[0.99] px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-blue-600/30 transition disabled:opacity-50 min-h-[42px]"
+              >
+                {authenticating ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <KeyRound className="h-4 w-4" />
+                    <span>কমান্ড সেন্টার আনলক করুন</span>
+                  </>
+                )}
+              </button>
+            </form>
+
+            <div className="mt-6 pt-4 border-t border-zinc-800/80 flex items-center justify-between text-xs">
+              <Link
+                href="/"
+                className="inline-flex items-center gap-1.5 text-zinc-400 hover:text-white transition"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+                <span>মূল ওয়েবসাইটে ফিরে যান</span>
+              </Link>
+              <Link
+                href="/login"
+                className="text-blue-400 hover:text-blue-300 font-medium"
+              >
+                শিক্ষার্থী লগইন
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#f8fafc] text-zinc-900 pb-20">
       {/* Top Admin Header */}
@@ -136,29 +248,41 @@ export default function AdminCommandCenterPage() {
             </div>
           </div>
 
-          {/* Tab Navigation */}
-          <div className="flex items-center space-x-1 rounded-lg bg-zinc-800 p-1 text-xs font-semibold">
+          <div className="flex items-center gap-3">
+            {/* Tab Navigation */}
+            <div className="flex items-center space-x-1 rounded-lg bg-zinc-800 p-1 text-xs font-semibold">
+              <button
+                onClick={() => setActiveTab("students")}
+                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 transition ${
+                  activeTab === "students"
+                    ? "bg-blue-600 text-white shadow-xs"
+                    : "text-zinc-400 hover:text-white"
+                }`}
+              >
+                <Users className="h-3.5 w-3.5" />
+                <span>শিক্ষার্থী অডিট ও ওভারসাইট</span>
+              </button>
+              <button
+                onClick={() => setActiveTab("pipeline")}
+                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 transition ${
+                  activeTab === "pipeline"
+                    ? "bg-blue-600 text-white shadow-xs"
+                    : "text-zinc-400 hover:text-white"
+                }`}
+              >
+                <Sparkles className="h-3.5 w-3.5 text-amber-400" />
+                <span>ফ্রি এআই প্রশ্ন এক্সট্রাকশন</span>
+              </button>
+            </div>
+
+            {/* Logout Button */}
             <button
-              onClick={() => setActiveTab("students")}
-              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 transition ${
-                activeTab === "students"
-                  ? "bg-blue-600 text-white shadow-xs"
-                  : "text-zinc-400 hover:text-white"
-              }`}
+              onClick={() => logout()}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-950/40 px-3 py-1.5 text-xs font-bold text-red-300 hover:bg-red-900/60 transition"
+              title="অ্যাডমিন সেশন সমাপ্ত করুন"
             >
-              <Users className="h-3.5 w-3.5" />
-              <span>শিক্ষার্থী অডিট ও ওভারসাইট</span>
-            </button>
-            <button
-              onClick={() => setActiveTab("pipeline")}
-              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 transition ${
-                activeTab === "pipeline"
-                  ? "bg-blue-600 text-white shadow-xs"
-                  : "text-zinc-400 hover:text-white"
-              }`}
-            >
-              <Sparkles className="h-3.5 w-3.5 text-amber-400" />
-              <span>ফ্রি এআই প্রশ্ন এক্সট্রাকশন</span>
+              <LogOut className="h-3.5 w-3.5" />
+              <span>লগআউট</span>
             </button>
           </div>
         </div>
