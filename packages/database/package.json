@@ -24,6 +24,7 @@
     }
   },
   "scripts": {
+    "prebuild": "pnpm --filter @admission-engine/types build",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
