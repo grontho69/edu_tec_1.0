@@ -5,7 +5,6 @@ import {
   LogCheatingInfractionSchema,
   AdminExtractJobInputSchema,
   UpdateDraftSchema,
-  ApproveDraftSchema,
   BatchApproveDraftsSchema,
 } from "@admission-engine/types";
 import type { StudentOversightService } from "./student-oversight.service";

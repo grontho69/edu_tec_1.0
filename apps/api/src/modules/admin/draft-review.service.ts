@@ -4,14 +4,14 @@ import {
   questions,
   ingestionJobs,
 } from "@admission-engine/database";
-import { eq, and, desc, inArray, sql } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 import type { UpdateDraftInput } from "@admission-engine/types";
 
 export interface DraftQueryOptions {
-  jobId?: string;
-  status?: "DRAFT" | "APPROVED" | "REJECTED" | "FAILED_PARSE";
-  limit?: number;
-  offset?: number;
+  jobId?: string | undefined;
+  status?: "DRAFT" | "APPROVED" | "REJECTED" | "FAILED_PARSE" | undefined;
+  limit?: number | undefined;
+  offset?: number | undefined;
 }
 
 export class DraftReviewService {
@@ -66,7 +66,13 @@ export class DraftReviewService {
       .update(questionDrafts)
       .set({
         parsedQuestionText: input.questionText,
-        parsedOptions: input.options,
+        parsedOptions: input.options
+          ? input.options.map((o) => ({
+              id: o.id,
+              text: o.text,
+              ...(o.isLatex !== undefined ? { isLatex: o.isLatex } : {}),
+            }))
+          : undefined,
         parsedCorrectOption: input.correctOption,
         parsedExplanation: input.explanation,
         parsedLatexFormulas: input.latexFormulas,

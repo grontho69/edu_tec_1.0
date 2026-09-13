@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import type { DatabaseInstance } from "@admission-engine/database";
 import { ingestionJobs, questionDrafts } from "@admission-engine/database";
+import { eq } from "drizzle-orm";
 import type {
   AdminExtractJobInput,
   ExtractedQuestionItem,
@@ -74,7 +75,11 @@ export class GeminiExtractorService {
           jobId,
           rawImageUrl: input.sourceFileUrl,
           parsedQuestionText: q.questionText,
-          parsedOptions: q.options,
+          parsedOptions: q.options.map((o) => ({
+            id: o.id,
+            text: o.text,
+            ...(o.isLatex !== undefined ? { isLatex: o.isLatex } : {}),
+          })),
           parsedCorrectOption: q.correctOption,
           parsedExplanation: q.explanation || null,
           parsedLatexFormulas: q.latexFormulas || [],
@@ -95,7 +100,7 @@ export class GeminiExtractorService {
           totalDetected: extractedQuestions.length,
           updatedAt: new Date(),
         })
-        .where(ingestionJobs.id.eq(jobId));
+        .where(eq(ingestionJobs.id, jobId));
 
       return {
         jobId,
@@ -111,7 +116,7 @@ export class GeminiExtractorService {
           errorMessage: errMsg,
           updatedAt: new Date(),
         })
-        .where(ingestionJobs.id.eq(jobId));
+        .where(eq(ingestionJobs.id, jobId));
 
       throw err;
     }
