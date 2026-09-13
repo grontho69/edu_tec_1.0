@@ -10,10 +10,13 @@ import {
   CheckCircle,
   ArrowRight,
   Filter,
+  Loader2,
 } from "lucide-react";
 import { FALLBACK_MODEL_TESTS } from "@/lib/fallback-data";
+import { useAuthGuard } from "@/lib/with-auth";
 
 export default function ModelTestsDirectoryPage() {
+  const { isLoading: authLoading } = useAuthGuard();
   const [filterStatus, setFilterStatus] = useState<string>("ALL");
 
   const filteredTests = FALLBACK_MODEL_TESTS.filter((t) => {
@@ -23,6 +26,11 @@ export default function ModelTestsDirectoryPage() {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-zinc-900 pb-20">
+      {authLoading && (
+        <div className="fixed inset-0 bg-white/80 z-50 flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        </div>
+      )}
       {/* Header */}
       <header className="sticky top-0 z-40 border-b border-zinc-200 bg-white/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">

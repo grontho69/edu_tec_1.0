@@ -20,8 +20,11 @@ import {
 } from "lucide-react";
 import { FALLBACK_TOPICS_CATALOG, FALLBACK_PRACTICE_QUESTIONS } from "@/lib/fallback-data";
 import { LatexRenderer } from "@/components/latex-renderer";
+import { useAuthGuard } from "@/lib/with-auth";
+import { Loader2 } from "lucide-react";
 
 export default function TopicsPracticePage() {
+  const { isLoading: authLoading } = useAuthGuard();
   const [activeSubjectId, setActiveSubjectId] = useState("phy");
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedChapter, setExpandedChapter] = useState<string>("phy-ch4");
@@ -67,6 +70,11 @@ export default function TopicsPracticePage() {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-zinc-900 pb-20">
+      {authLoading && (
+        <div className="fixed inset-0 bg-white/80 z-50 flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        </div>
+      )}
       {/* Header */}
       <header className="sticky top-0 z-40 border-b border-zinc-200 bg-white/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">

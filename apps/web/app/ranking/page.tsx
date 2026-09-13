@@ -11,14 +11,24 @@ import {
   Award,
   ChevronRight,
   ShieldAlert,
+  Loader2,
 } from "lucide-react";
 import { FALLBACK_LEADERBOARD } from "@/lib/fallback-data";
+import { useAuthGuard } from "@/lib/with-auth";
+import { useAuth } from "@/lib/auth-context";
 
 export default function RankingLeaderboardPage() {
+  const { isLoading: authLoading } = useAuthGuard();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("BUET");
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-zinc-900 pb-20">
+      {authLoading && (
+        <div className="fixed inset-0 bg-white/80 z-50 flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        </div>
+      )}
       {/* Header */}
       <header className="sticky top-0 z-40 border-b border-zinc-200 bg-white/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
@@ -38,7 +48,7 @@ export default function RankingLeaderboardPage() {
               <span>ড্যাশবোর্ড</span>
             </Link>
             <Link
-              href="/exams/8f8b89e2-1111-2222-3333-444455556666/room"
+              href="/exams"
               className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 shadow-xs"
             >
               <span>লাইভ এক্সাম</span>
@@ -53,43 +63,46 @@ export default function RankingLeaderboardPage() {
           <div className="max-w-2xl">
             <div className="inline-flex items-center gap-1.5 rounded-md bg-white/20 px-2.5 py-0.5 text-xs font-bold backdrop-blur-xs mb-3">
               <Trophy className="h-3.5 w-3.5 text-amber-200" />
-              রিয়েল-টাইম টাই-ব্রেকার মেরিট লিস্ট
+              রিয়েল-টাইম টাই-ব্রেকার মেরিট লিস্ট
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
               অল-বাংলাদেশ এডমিশন মেধা তালিকা
             </h1>
             <p className="mt-2 text-xs sm:text-sm text-amber-100 leading-relaxed">
-              সঠিক উত্তর, নেগেটিভ মার্কিং এবং পরীক্ষা সম্পন্ন করার সময়ের নিখুঁত গাণিতিক টাই-ব্রেকার সূত্রে স্বয়ংক্রিয়ভাবে তৈরি মেধা তালিকা।
+              সঠিক উত্তর, নেগেটিভ মার্কিং এবং পরীক্ষা সম্পন্ন করার সময়ের নিখুঁত গাণিতিক টাই-ব্রেকার সূত্রে স্বয়ংক্রিয়ভাবে তৈরি মেধা তালিকা।
             </p>
           </div>
         </div>
 
         {/* User's Current Rank Card */}
+        {user && (
         <div className="mb-6 rounded-2xl border-2 border-blue-600 bg-blue-50/70 p-5 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center space-x-4">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 text-white font-extrabold text-lg shadow-sm">
-              #৫
+              —
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <h3 className="text-base font-bold text-zinc-900">তাহমিদ আলী (তুমি)</h3>
+                <h3 className="text-base font-bold text-zinc-900">{user.fullName} (তুমি)</h3>
                 <span className="rounded-md bg-blue-600 px-2 py-0.5 text-[10px] font-bold text-white uppercase">
                   তোমার বর্তমান পজিশন
                 </span>
               </div>
               <p className="text-xs text-zinc-600 mt-0.5">
-                স্কোর: <span className="font-bold text-zinc-900">৪৩.৭৫ / ৫০</span> • পারসেন্টাইল: <span className="font-bold text-emerald-600">৯৮.২%</span>
+                প্রথম পরীক্ষায় অংশ নিলে তোমার মেরিট পজিশন এখানে দেখা যাবে।
               </p>
             </div>
           </div>
-
           <div className="flex items-center space-x-2">
-            <span className="text-xs text-zinc-500">সম্ভাব্য চান্স প্রজেকশন:</span>
-            <span className="inline-flex items-center rounded-lg bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-800">
-              বুয়েট টপ ২৫০ (নিশ্চিত জোন)
-            </span>
+            <Link
+              href="/exams"
+              className="inline-flex items-center rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-700"
+            >
+              এক্সামে অংশ নাও
+            </Link>
           </div>
         </div>
+        )}
 
         {/* Top Performers Table */}
         <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-xs">

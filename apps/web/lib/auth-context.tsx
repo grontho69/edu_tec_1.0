@@ -8,7 +8,6 @@ export interface AuthUser {
   role: "STUDENT" | "SUPER_ADMIN";
   fullName: string;
   email: string;
-  phone?: string | null;
   targetUnit?: string;
 }
 
@@ -19,11 +18,12 @@ interface AuthContextType {
   isAdmin: boolean;
   login: (user: AuthUser, token: string) => void;
   logout: () => void;
-  loginAsDemoStudent: () => Promise<void>;
   loginAsAdmin: (passkey: string) => Promise<{ success: boolean; message: string }>;
-  loginWithEmail: (email: string, fullName?: string, targetUnit?: string) => Promise<{ success: boolean; message: string }>;
-  sendOtp: (phone: string) => Promise<{ success: boolean; message: string }>;
-  verifyOtp: (phone: string, otp: string) => Promise<{ success: boolean; message: string }>;
+  loginWithEmail: (
+    email: string,
+    fullName?: string,
+    targetUnit?: string
+  ) => Promise<{ success: boolean; message: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -43,7 +43,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Hydrate authentication state from localStorage safely in browser
     try {
       const storedToken = localStorage.getItem("auth_token");
       const storedUser = localStorage.getItem("auth_user");
@@ -75,40 +74,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       localStorage.removeItem("auth_token");
       localStorage.removeItem("auth_user");
-      localStorage.removeItem("admin_passkey");
     } catch (e) {
       console.warn("Storage error:", e);
     }
     router.push("/");
-  };
-
-  const loginAsDemoStudent = async () => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/auth/demo-student-login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-      if (res.ok) {
-        const json = await res.json();
-        login(json.user, json.token);
-        router.push("/dashboard");
-        return;
-      }
-    } catch (e) {
-      console.warn("Live API demo student login failed, falling back locally:", e);
-    }
-
-    // Local simulation fallback
-    const fallbackDemoStudent: AuthUser = {
-      id: "55555555-5555-5555-5555-555555555555",
-      role: "STUDENT",
-      fullName: "তাহমিদ আলী (HSC '25)",
-      email: "tahmid.admission@student.edu.bd",
-      phone: "+8801700000001",
-      targetUnit: "ENGINEERING",
-    };
-    login(fallbackDemoStudent, "demo-student-token-simulation");
-    router.push("/dashboard");
   };
 
   const loginAsAdmin = async (passkey: string): Promise<{ success: boolean; message: string }> => {
@@ -121,32 +90,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const json = await res.json();
       if (res.ok && json.success) {
         login(json.user, json.token);
-        try {
-          localStorage.setItem("admin_passkey", passkey);
-        } catch {}
-        return { success: true, message: json.message || "সফলভাবে লগইন হয়েছে।" };
+        return { success: true, message: json.message || "সফলভাবে লগইন হয়েছে।" };
       }
       return { success: false, message: json.message || "ভুল পাসকি।" };
-    } catch (e) {
-      // Local fallback check
-      if (passkey.trim() === "admin_super_secret_2025" || passkey.trim() === "buet_admin_2025") {
+    } catch {
+      // Local fallback — only if network is down
+      const configuredKey = process.env["NEXT_PUBLIC_ADMIN_KEY"] || "";
+      if (configuredKey && passkey.trim() === configuredKey) {
         const fallbackAdmin: AuthUser = {
           id: "00000000-0000-0000-0000-000000000001",
           role: "SUPER_ADMIN",
-          fullName: "Admission Engine Lead Administrator",
+          fullName: "Admission Engine Administrator",
           email: "admin@admissionengine.com",
-          phone: "+8801700000000",
-          targetUnit: "ENGINEERING",
         };
-        login(fallbackAdmin, "admin-simulated-jwt-token");
-        try {
-          localStorage.setItem("admin_passkey", passkey);
-        } catch {}
+        login(fallbackAdmin, "admin-offline-token");
         return { success: true, message: "সুপার অ্যাডমিন হিসেবে প্রমাণিত।" };
       }
       return {
         success: false,
-        message: "ভুল পাসকি! সুপার অ্যাডমিন কমান্ড সেন্টারে প্রবেশের অনুমতি নেই।",
+        message: "সার্ভারে সংযোগ করা সম্ভব হয়নি। পরে আবার চেষ্টা করুন।",
       };
     }
   };
@@ -165,65 +127,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const json = await res.json();
       if (res.ok && json.success) {
         login(json.user, json.token);
-        return { success: true, message: json.message || "সফলভাবে লগইন হয়েছে।" };
+        return { success: true, message: json.message || "সফলভাবে লগইন হয়েছে।" };
       }
-      return { success: false, message: json.message || "লগইন ব্যর্থ হয়েছে।" };
-    } catch (e) {
-      // Offline fallback for zero-downtime testing
-      const fallbackUser: AuthUser = {
-        id: "student-" + Date.now(),
-        role: "STUDENT",
-        fullName: fullName?.trim() || `শিক্ষার্থী (${email.split("@")[0]})`,
-        email: email.trim(),
-        targetUnit: targetUnit || "ENGINEERING",
+      return { success: false, message: json.message || "লগইন ব্যর্থ হয়েছে।" };
+    } catch {
+      return {
+        success: false,
+        message: "সার্ভারে সংযোগ করা সম্ভব হয়নি। ইন্টারনেট সংযোগ পরীক্ষা করুন।",
       };
-      login(fallbackUser, "simulated-email-jwt-token");
-      return { success: true, message: "সফলভাবে লগইন হয়েছে।" };
-    }
-  };
-
-  const sendOtp = async (phone: string) => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/auth/send-otp`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone }),
-      });
-      const json = await res.json();
-      if (res.ok) {
-        return { success: true, message: json.message || "ওটিপি কোড পাঠানো হয়েছে।" };
-      }
-      return { success: false, message: json.message || "ওটিপি পাঠাতে সমস্যা হয়েছে।" };
-    } catch (e) {
-      return { success: true, message: "ডেমো মোড: ওটিপি কোড পাঠানো হয়েছে (যেকোনো ৬ ডিজিট দিন, যেমন ১২৩৪৫৬)।" };
-    }
-  };
-
-  const verifyOtp = async (phone: string, otp: string) => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/auth/verify-otp`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, otp }),
-      });
-      const json = await res.json();
-      if (res.ok && json.success) {
-        login(json.user, json.token);
-        return { success: true, message: "সফলভাবে লগইন হয়েছে।" };
-      }
-      return { success: false, message: json.message || "ভুল ওটিপি কোড।" };
-    } catch (e) {
-      // Demo fallback
-      const studentUser: AuthUser = {
-        id: "student-" + Date.now(),
-        role: "STUDENT",
-        fullName: `শিক্ষার্থী (${phone.slice(-4)})`,
-        email: `${phone.replace("+", "")}@admissionengine.edu`,
-        phone,
-        targetUnit: "ENGINEERING",
-      };
-      login(studentUser, "simulated-otp-jwt-token");
-      return { success: true, message: "সফলভাবে লগইন হয়েছে (সিমুলেশন)।" };
     }
   };
 
@@ -238,11 +149,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isAdmin,
         login,
         logout,
-        loginAsDemoStudent,
         loginAsAdmin,
         loginWithEmail,
-        sendOtp,
-        verifyOtp,
       }}
     >
       {children}

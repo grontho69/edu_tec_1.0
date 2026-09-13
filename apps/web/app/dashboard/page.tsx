@@ -20,9 +20,11 @@ import {
 } from "lucide-react";
 import { fetchDashboardAnalytics } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
+import { useAuthGuard } from "@/lib/with-auth";
 
 export default function StudentDashboardPage() {
   const { user, logout } = useAuth();
+  const { isLoading: authLoading } = useAuthGuard();
   const {
     data: analyticsResponse,
     isLoading,
@@ -43,6 +45,11 @@ export default function StudentDashboardPage() {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-zinc-900 pb-16">
+      {authLoading && (
+        <div className="fixed inset-0 bg-white/80 z-50 flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        </div>
+      )}
       {/* Top Header */}
       <header className="sticky top-0 z-30 border-b border-zinc-200 bg-white/85 backdrop-blur-md">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
