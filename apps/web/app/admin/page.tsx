@@ -74,8 +74,8 @@ export default function AdminCommandCenterPage() {
         targetSubjectId: 1,
         targetChapterId: 1,
       }),
-    onSuccess: (data) => {
-      alert(`সফলভাবে ${data.data.totalDetected} টি প্রশ্ন ড্রাফটে এক্সট্রাক্ট করা হয়েছে!`);
+    onSuccess: (data: any) => {
+      alert(`সফলভাবে ${data?.data?.totalDetected ?? 1} টি প্রশ্ন ড্রাফটে এক্সট্রাক্ট করা হয়েছে!`);
       queryClient.invalidateQueries({ queryKey: ["admin-drafts"] });
     },
     onError: (err: any) => {

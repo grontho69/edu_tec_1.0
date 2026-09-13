@@ -88,16 +88,16 @@ export default function LandingPage() {
             </Link>
 
             <nav className="hidden md:flex items-center space-x-5 text-sm font-medium text-zinc-600">
-              <Link href="/dashboard" className="text-zinc-900 hover:text-blue-600">
+              <Link href="/topics" className="hover:text-blue-600">
                 প্রশ্ন ব্যাংক
               </Link>
-              <Link href="/dashboard" className="hover:text-blue-600">
+              <Link href="/exams" className="hover:text-blue-600">
                 মডেল টেস্ট
               </Link>
               <a href="#circulars" className="relative hover:text-blue-600 text-blue-600 font-semibold">
                 সার্কুলার <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-600 align-super ml-0.5"></span>
               </a>
-              <Link href="/dashboard" className="hover:text-blue-600">
+              <Link href="/ranking" className="hover:text-blue-600">
                 র‍্যাংকিং
               </Link>
             </nav>

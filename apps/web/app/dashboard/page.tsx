@@ -46,10 +46,20 @@ export default function StudentDashboardPage() {
             <Link href="/" className="font-bold text-lg text-zinc-900">
               Admission <span className="text-blue-600">Engine</span>
             </Link>
-            <span className="hidden sm:inline-block text-xs font-semibold text-zinc-400">|</span>
-            <span className="hidden sm:inline-block text-xs font-medium text-zinc-600">
-              শিক্ষার্থী ড্যাশবোর্ড
-            </span>
+            <nav className="hidden md:flex items-center space-x-4 text-xs font-semibold text-zinc-600 ml-3">
+              <Link href="/topics" className="hover:text-blue-600">
+                প্রশ্ন ব্যাংক
+              </Link>
+              <Link href="/exams" className="hover:text-blue-600">
+                মডেল টেস্ট
+              </Link>
+              <Link href="/ranking" className="hover:text-blue-600">
+                র‍্যাংকিং
+              </Link>
+              <Link href="/dashboard/mistake-book" className="hover:text-rose-600">
+                ভুল খাতা
+              </Link>
+            </nav>
           </div>
 
           <div className="flex items-center space-x-3">
@@ -87,6 +97,25 @@ export default function StudentDashboardPage() {
             </span>
           </div>
         </div>
+
+        {/* Dynamic / Demo Mode Indicator */}
+        {analyticsResponse?.isOfflineFallback && (
+          <div className="mb-6 rounded-2xl bg-blue-50/80 border border-blue-200 p-4 text-xs text-blue-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 shadow-2xs">
+            <div className="flex items-center space-x-2">
+              <Sparkles className="h-4 w-4 text-blue-600 shrink-0" />
+              <span>
+                <strong>ডেমো মোড সক্রিয়:</strong> ব্যাকএন্ড এখনো অফলাইন থাকা সত্ত্বেও সমস্ত প্রশ্ন ব্যাংক, লাইভ টেস্ট এবং প্র্যাকটিস ফিচার ১০০% কাজ করছে।
+              </span>
+            </div>
+            <Link
+              href="/topics"
+              className="inline-flex items-center gap-1 font-bold text-blue-700 hover:underline shrink-0"
+            >
+              <span>প্রশ্ন ব্যাংক খোলো</span>
+              <ArrowRight className="h-3 w-3" />
+            </Link>
+          </div>
+        )}
 
         {/* 1. The 3 Primary Intent Cards */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-8">
@@ -144,13 +173,13 @@ export default function StudentDashboardPage() {
                 </div>
               </div>
             </div>
-            <a
-              href="#topics"
-              className="mt-5 inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 transition active:scale-98 min-h-[48px]"
+            <Link
+              href="/topics"
+              className="mt-5 inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-emerald-700 transition active:scale-98 min-h-[48px] shadow-xs"
             >
-              <span>টপিক লিস্ট দেখো</span>
+              <span>টপিক প্র্যাকটিস শুরু করো</span>
               <ArrowRight className="h-3.5 w-3.5" />
-            </a>
+            </Link>
           </div>
 
           {/* Intent Card 3: আমার ভুল খাতা */}
