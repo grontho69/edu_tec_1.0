@@ -112,8 +112,8 @@ export class AdminController {
     try {
       const query = (request.query as Record<string, string>) || {};
       const drafts = await this.draftReviewService.listDrafts({
-        jobId: query["jobId"],
-        status: query["status"] as any,
+        jobId: query["jobId"] || undefined,
+        status: (query["status"] as any) || undefined,
         limit: query["limit"] ? parseInt(query["limit"], 10) : 50,
         offset: query["offset"] ? parseInt(query["offset"], 10) : 0,
       });
