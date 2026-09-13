@@ -8,6 +8,8 @@
     "dev:api": "pnpm --filter @admission-engine/api dev",
     "dev:web": "pnpm --filter @admission-engine/web dev",
     "build": "pnpm --filter @admission-engine/types build && pnpm --filter @admission-engine/database build && pnpm --filter @admission-engine/api build && pnpm --filter @admission-engine/web build",
+    "build:api": "pnpm --filter @admission-engine/types build && pnpm --filter @admission-engine/database build && pnpm --filter @admission-engine/api build",
+    "start:api": "pnpm --filter @admission-engine/api start",
     "typecheck": "pnpm --filter \"@admission-engine/*\" typecheck",
     "test": "pnpm --filter \"@admission-engine/*\" test",
     "db:generate": "pnpm --filter @admission-engine/database db:generate",

@@ -10,7 +10,7 @@
     "prebuild": "pnpm --filter @admission-engine/types build && pnpm --filter @admission-engine/database build",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "start": "node dist/server.js",
+    "start": "tsx src/server.ts",
     "test": "vitest run"
   },
   "dependencies": {
