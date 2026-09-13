@@ -4,6 +4,9 @@
   "private": true,
   "description": "High-concurrency Admission Exam Engine SaaS data layer",
   "scripts": {
+    "dev": "pnpm --parallel --filter @admission-engine/api --filter @admission-engine/web dev",
+    "dev:api": "pnpm --filter @admission-engine/api dev",
+    "dev:web": "pnpm --filter @admission-engine/web dev",
     "build": "pnpm --filter \"@admission-engine/*\" build",
     "typecheck": "pnpm --filter \"@admission-engine/*\" typecheck",
     "test": "pnpm --filter \"@admission-engine/*\" test",
