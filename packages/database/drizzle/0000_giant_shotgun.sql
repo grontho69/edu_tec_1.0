@@ -168,6 +168,7 @@ CREATE TABLE "mistake_book" (
 	"user_id" uuid NOT NULL,
 	"question_id" uuid NOT NULL,
 	"mistake_count" integer DEFAULT 1 NOT NULL,
+	"consecutive_correct_count" integer DEFAULT 0 NOT NULL,
 	"is_mastered" boolean DEFAULT false NOT NULL,
 	"last_attempted_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"notes" text,

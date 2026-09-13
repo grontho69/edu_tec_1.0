@@ -22,6 +22,7 @@ export const mistakeBook = pgTable(
       .references(() => questions.id, { onDelete: "cascade" })
       .notNull(),
     mistakeCount: integer("mistake_count").default(1).notNull(),
+    consecutiveCorrectCount: integer("consecutive_correct_count").default(0).notNull(),
     isMastered: boolean("is_mastered").default(false).notNull(),
     lastAttemptedAt: timestamp("last_attempted_at", { withTimezone: true })
       .defaultNow()

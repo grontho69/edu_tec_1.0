@@ -5,6 +5,7 @@ export const MistakeBookItemSchema = z.object({
   userId: z.string().uuid(),
   questionId: z.string().uuid(),
   mistakeCount: z.number().int().positive().default(1),
+  consecutiveCorrectCount: z.number().int().nonnegative().default(0),
   isMastered: z.boolean().default(false),
   lastAttemptedAt: z.coerce.date(),
   notes: z.string().nullable().optional(),

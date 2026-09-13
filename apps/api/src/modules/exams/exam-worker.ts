@@ -16,6 +16,13 @@ export interface ExamSubmissionJob {
   clientSubmittedAt: string;
 }
 
+export interface TopicBreakdownItem {
+  topicId: number;
+  attempted: number;
+  correct: number;
+  incorrect: number;
+}
+
 export interface EvaluatedExamResult {
   submissionId: string;
   ticketId: string;
@@ -28,6 +35,7 @@ export interface EvaluatedExamResult {
   totalUnanswered: number;
   timeTakenSeconds: number;
   missedQuestionIds: string[];
+  topicBreakdown?: TopicBreakdownItem[];
 }
 
 // Global Event Emitter for EXAM_EVALUATED events
@@ -93,8 +101,16 @@ export class ExamWorker {
     }
 
     // Grade each question in exam
+    const topicStatsMap = new Map<number, { attempted: number; correct: number; incorrect: number }>();
+
     for (const [questionId, keyData] of answerKeys.entries()) {
       const userAns = submittedMap.get(questionId);
+
+      if (keyData.topicId) {
+        if (!topicStatsMap.has(keyData.topicId)) {
+          topicStatsMap.set(keyData.topicId, { attempted: 0, correct: 0, incorrect: 0 });
+        }
+      }
 
       if (!userAns || !userAns.selectedOption) {
         missedQuestionIds.push(questionId);
@@ -103,6 +119,16 @@ export class ExamWorker {
 
       const isCorrect = userAns.selectedOption === keyData.correctOptionId;
       let marksAwarded = 0;
+
+      if (keyData.topicId) {
+        const tStat = topicStatsMap.get(keyData.topicId)!;
+        tStat.attempted++;
+        if (isCorrect) {
+          tStat.correct++;
+        } else {
+          tStat.incorrect++;
+        }
+      }
 
       if (isCorrect) {
         totalCorrect++;
@@ -125,6 +151,15 @@ export class ExamWorker {
         timeSpentSeconds: userAns.timeSpentSeconds || 0,
       });
     }
+
+    const topicBreakdown: TopicBreakdownItem[] = Array.from(topicStatsMap.entries()).map(
+      ([topicId, stats]) => ({
+        topicId,
+        attempted: stats.attempted,
+        correct: stats.correct,
+        incorrect: stats.incorrect,
+      })
+    );
 
     const totalQuestions = answerKeys.size;
     const totalUnanswered = Math.max(0, totalQuestions - (totalCorrect + totalWrong));
@@ -183,6 +218,7 @@ export class ExamWorker {
       totalUnanswered,
       timeTakenSeconds,
       missedQuestionIds,
+      topicBreakdown,
     };
 
     // 5. Emit EXAM_EVALUATED internal event

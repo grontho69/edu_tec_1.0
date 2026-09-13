@@ -6,6 +6,7 @@ import { defaultRedisClient } from "../auth/redis.service";
 
 export interface CachedQuestionItem {
   id: string;
+  topicId?: number | null;
   questionText: string;
   questionType: string;
   options: any;
@@ -30,6 +31,7 @@ export interface CachedExamPaper {
 
 export interface SanitizedQuestionItem {
   id: string;
+  topicId?: number | null;
   questionText: string;
   questionType: string;
   options: any;
@@ -54,6 +56,7 @@ export interface AnswerKeyData {
   correctOptionId: string;
   marks: number;
   negativeMarks: number;
+  topicId?: number | null;
 }
 
 export class ExamCacheService {
@@ -104,6 +107,7 @@ export class ExamCacheService {
         endTime: examRecord.endTime ? examRecord.endTime.toISOString() : null,
         questions: examQuestions.map((q) => ({
           id: q.id,
+          topicId: q.topicId,
           questionText: q.questionText,
           questionType: q.questionType,
           options: q.options,
@@ -126,6 +130,7 @@ export class ExamCacheService {
         correctOptionId: q.correctOptionId,
         marks: q.marks,
         negativeMarks: q.negativeMarks,
+        topicId: q.topicId,
       });
     }
     this.answerKeysCache.set(examId, keysMap);
@@ -169,6 +174,7 @@ export class ExamCacheService {
       endTime: paper.endTime,
       questions: paper.questions.map((q) => ({
         id: q.id,
+        topicId: q.topicId,
         questionText: q.questionText,
         questionType: q.questionType,
         options: q.options,

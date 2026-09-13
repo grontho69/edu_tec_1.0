@@ -10,6 +10,8 @@ import { questionsRoutes } from "./modules/questions/questions.routes";
 import { authRoutes } from "./modules/auth/auth.routes";
 import { adminRoutes } from "./modules/admin/admin.routes";
 import { examsRoutes } from "./modules/exams/exams.routes";
+import { analyticsRoutes } from "./modules/analytics/analytics.routes";
+import { initAnalyticsSubscriber } from "./modules/analytics/analytics.subscriber";
 import {
   defaultRedisClient,
   type IRedisClient,
@@ -23,6 +25,7 @@ export interface BuildAppOptions {
   redisClient?: IRedisClient;
   submissionQueue?: ISubmissionQueue;
   examCacheService?: ExamCacheService;
+  enableAnalyticsSubscriber?: boolean;
   logger?: boolean;
 }
 
@@ -57,9 +60,15 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       });
       await v1.register(taxonomyRoutes, { db });
       await v1.register(questionsRoutes, { db });
+      await v1.register(analyticsRoutes, { db });
     },
     { prefix: "/api/v1" }
   );
+
+  // Initialize dynamic analytics event subscriber
+  if (options.enableAnalyticsSubscriber !== false) {
+    initAnalyticsSubscriber(db);
+  }
 
   // Health check
   app.get("/health", async () => ({ status: "ok", timestamp: new Date().toISOString() }));
