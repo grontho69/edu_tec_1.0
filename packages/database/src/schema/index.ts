@@ -9,4 +9,5 @@ export * from "./submissions";
 export * from "./mistake_book";
 export * from "./user_analytics";
 export * from "./user_topic_metrics";
+export * from "./cheating_logs";
 export * from "./indexes";

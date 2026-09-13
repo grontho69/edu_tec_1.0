@@ -240,4 +240,20 @@ CREATE INDEX "exam_submissions_user_id_idx" ON "exam_submissions" USING btree ("
 CREATE INDEX "submission_answers_submission_id_idx" ON "submission_answers" USING btree ("submission_id");--> statement-breakpoint
 CREATE INDEX "submission_answers_question_id_idx" ON "submission_answers" USING btree ("question_id");--> statement-breakpoint
 CREATE INDEX "mistake_book_user_mastered_last_attempt_idx" ON "mistake_book" USING btree ("user_id","is_mastered","last_attempted_at" DESC NULLS LAST);--> statement-breakpoint
-CREATE INDEX "user_topic_metrics_user_topic_idx" ON "user_topic_metrics" USING btree ("user_id","topic_id");
+CREATE INDEX "user_topic_metrics_user_topic_idx" ON "user_topic_metrics" USING btree ("user_id","topic_id");--> statement-breakpoint
+CREATE TYPE "public"."infraction_type" AS ENUM('TAB_BLUR', 'FULLSCREEN_EXIT', 'MULTIPLE_DISPLAYS', 'DEVTOOLS_OPEN');--> statement-breakpoint
+CREATE TYPE "public"."proctor_action" AS ENUM('WARNING', 'FORCED_SUBMISSION');--> statement-breakpoint
+CREATE TABLE "cheating_logs" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"user_id" uuid NOT NULL,
+	"exam_id" uuid NOT NULL,
+	"infraction_type" "infraction_type" NOT NULL,
+	"infraction_number" integer DEFAULT 1 NOT NULL,
+	"action_taken" "proctor_action" DEFAULT 'WARNING' NOT NULL,
+	"metadata" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);--> statement-breakpoint
+ALTER TABLE "cheating_logs" ADD CONSTRAINT "cheating_logs_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cheating_logs" ADD CONSTRAINT "cheating_logs_exam_id_exams_id_fk" FOREIGN KEY ("exam_id") REFERENCES "public"."exams"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "cheating_logs_user_exam_idx" ON "cheating_logs" USING btree ("user_id","exam_id");--> statement-breakpoint
+CREATE INDEX "cheating_logs_created_at_idx" ON "cheating_logs" USING btree ("created_at");
