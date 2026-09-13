@@ -6,6 +6,13 @@ export const userRoleEnum = pgEnum("user_role", [
   "SUPER_ADMIN",
 ]);
 
+export const targetUnitEnum = pgEnum("target_unit", [
+  "ENGINEERING",
+  "DU_KA",
+  "MEDICAL",
+  "GST",
+]);
+
 export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
   tenantId: varchar("tenant_id", { length: 64 })
@@ -13,7 +20,9 @@ export const users = pgTable("users", {
     .default("DIRECT_B2C")
     .notNull(),
   role: userRoleEnum("role").default("STUDENT").notNull(),
+  targetUnit: targetUnitEnum("target_unit").default("ENGINEERING").notNull(),
   email: varchar("email", { length: 255 }).notNull().unique(),
+  googleId: varchar("google_id", { length: 255 }).unique(),
   fullName: varchar("full_name", { length: 255 }).notNull(),
   avatarUrl: text("avatar_url"),
   phone: varchar("phone", { length: 32 }),

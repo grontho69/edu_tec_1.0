@@ -1,5 +1,6 @@
 CREATE TYPE "public"."tenant_status" AS ENUM('ACTIVE', 'SUSPENDED', 'ARCHIVED');--> statement-breakpoint
 CREATE TYPE "public"."user_role" AS ENUM('STUDENT', 'SUPER_ADMIN');--> statement-breakpoint
+CREATE TYPE "public"."target_unit" AS ENUM('ENGINEERING', 'DU_KA', 'MEDICAL', 'GST');--> statement-breakpoint
 CREATE TYPE "public"."difficulty_level" AS ENUM('EASY', 'MEDIUM', 'HARD');--> statement-breakpoint
 CREATE TYPE "public"."question_type" AS ENUM('MCQ', 'NUMERICAL');--> statement-breakpoint
 CREATE TYPE "public"."ingestion_file_type" AS ENUM('PDF', 'IMAGE');--> statement-breakpoint
@@ -22,13 +23,16 @@ CREATE TABLE "users" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"tenant_id" varchar(64) DEFAULT 'DIRECT_B2C' NOT NULL,
 	"role" "user_role" DEFAULT 'STUDENT' NOT NULL,
+	"target_unit" "target_unit" DEFAULT 'ENGINEERING' NOT NULL,
 	"email" varchar(255) NOT NULL,
+	"google_id" varchar(255),
 	"full_name" varchar(255) NOT NULL,
 	"avatar_url" text,
 	"phone" varchar(32),
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "users_email_unique" UNIQUE("email")
+	CONSTRAINT "users_email_unique" UNIQUE("email"),
+	CONSTRAINT "users_google_id_unique" UNIQUE("google_id")
 );
 --> statement-breakpoint
 CREATE TABLE "chapters" (
