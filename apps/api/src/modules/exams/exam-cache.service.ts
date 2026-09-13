@@ -6,7 +6,7 @@ import { defaultRedisClient } from "../auth/redis.service";
 
 export interface CachedQuestionItem {
   id: string;
-  topicId?: number | null;
+  topicId?: number | null | undefined;
   questionText: string;
   questionType: string;
   options: any;
@@ -14,7 +14,7 @@ export interface CachedQuestionItem {
   negativeMarks: number;
   difficulty: string;
   correctOptionId: string;
-  explanation?: string | null;
+  explanation?: string | null | undefined;
 }
 
 export interface CachedExamPaper {
@@ -31,7 +31,7 @@ export interface CachedExamPaper {
 
 export interface SanitizedQuestionItem {
   id: string;
-  topicId?: number | null;
+  topicId?: number | null | undefined;
   questionText: string;
   questionType: string;
   options: any;
@@ -56,7 +56,7 @@ export interface AnswerKeyData {
   correctOptionId: string;
   marks: number;
   negativeMarks: number;
-  topicId?: number | null;
+  topicId?: number | null | undefined;
 }
 
 export class ExamCacheService {

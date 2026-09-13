@@ -4,9 +4,9 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { AnalyticsService, TopicMetricItem } from "./analytics.service";
 
 export interface MistakeQueryOptions {
-  isMastered?: boolean;
-  limit?: number;
-  offset?: number;
+  isMastered?: boolean | undefined;
+  limit?: number | undefined;
+  offset?: number | undefined;
 }
 
 export interface SanitizedRetestQuestion {
@@ -288,6 +288,8 @@ export class MistakeBookService {
           })
           .returning();
 
+        if (!updated) continue;
+
         if (updated.isMastered) {
           newlyMasteredCount++;
         }
@@ -326,6 +328,8 @@ export class MistakeBookService {
             },
           })
           .returning();
+
+        if (!updated) continue;
 
         results.push({
           questionId: ans.questionId,
