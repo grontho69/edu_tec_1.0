@@ -1,0 +1,18 @@
+{
+  "name": "admission-exam-engine",
+  "version": "1.0.0",
+  "private": true,
+  "description": "High-concurrency Admission Exam Engine SaaS data layer",
+  "scripts": {
+    "build": "pnpm --filter \"@admission-engine/*\" build",
+    "typecheck": "pnpm --filter \"@admission-engine/*\" typecheck",
+    "test": "pnpm --filter \"@admission-engine/*\" test",
+    "db:generate": "pnpm --filter @admission-engine/database db:generate",
+    "db:migrate": "pnpm --filter @admission-engine/database db:migrate",
+    "db:seed": "pnpm --filter @admission-engine/database db:seed"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.2"
+  },
+  "packageManager": "pnpm@11.25.0"
+}
