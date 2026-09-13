@@ -107,5 +107,33 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   // Health check
   app.get("/health", async () => ({ status: "ok", timestamp: new Date().toISOString() }));
 
+  // Root endpoint: API Status & Directory
+  app.get("/", async () => ({
+    name: "Admission Engine REST API",
+    status: "online",
+    version: "1.0.0",
+    message: "Question Delivery Engine API is operational.",
+    endpoints: {
+      health: "/health",
+      taxonomy: "/api/v1/taxonomy",
+      questions: "/api/v1/questions",
+      exams: "/api/v1/exams",
+      analytics: "/api/v1/analytics",
+      auth: "/api/v1/auth",
+    },
+    timestamp: new Date().toISOString(),
+  }));
+
+  // Global error handler
+  app.setErrorHandler((error: any, _request, reply) => {
+    app.log.error(error);
+    const statusCode = error?.statusCode || 500;
+    return reply.status(statusCode).send({
+      success: false,
+      error: error?.name || "InternalServerError",
+      message: error?.message || "An internal error occurred on the API server.",
+    });
+  });
+
   return app;
 }
