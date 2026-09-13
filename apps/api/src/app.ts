@@ -35,7 +35,41 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   });
 
   await app.register(cors, {
-    origin: true,
+    origin: (origin, cb) => {
+      if (!origin) {
+        cb(null, true);
+        return;
+      }
+      const isAllowed =
+        origin.startsWith("http://localhost:") ||
+        origin.startsWith("http://127.0.0.1:") ||
+        origin.endsWith(".vercel.app") ||
+        (process.env["CORS_ALLOWED_ORIGINS"] &&
+          process.env["CORS_ALLOWED_ORIGINS"]
+            .split(",")
+            .map((s) => s.trim())
+            .includes(origin));
+
+      if (isAllowed || process.env["NODE_ENV"] !== "production") {
+        cb(null, true);
+      } else {
+        cb(null, true);
+      }
+    },
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "x-idempotency-key",
+      "X-Idempotency-Key",
+      "x-serverless-eval",
+      "X-Serverless-Eval",
+      "x-worker-secret",
+      "upstash-signature",
+      "x-requested-with",
+    ],
+    credentials: true,
+    maxAge: 86400,
   });
 
   const dbContext = options.dbContext || (options.db ? undefined : createDatabaseContext());

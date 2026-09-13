@@ -1,8 +1,10 @@
 import { buildApp } from "./app";
 import { createDatabaseContext, seed } from "@admission-engine/database";
+import { validateServerEnv } from "@admission-engine/types";
 
-const PORT = parseInt(process.env["PORT"] || "3000", 10);
-const HOST = process.env["HOST"] || "0.0.0.0";
+const env = validateServerEnv();
+const PORT = env.PORT;
+const HOST = env.HOST;
 
 async function startServer() {
   const dbContext = createDatabaseContext();

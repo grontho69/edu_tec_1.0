@@ -22,10 +22,10 @@ export interface InfractionRecord {
 let dbPromise: Promise<IDBPDatabase> | null = null;
 
 function getDb(): Promise<IDBPDatabase> | null {
+  const isClient = typeof window !== "undefined";
   const hasIndexedDb =
-    typeof indexedDB !== "undefined" ||
-    (typeof globalThis !== "undefined" &&
-      typeof (globalThis as any).indexedDB !== "undefined");
+    (isClient && "indexedDB" in window && !!window.indexedDB) ||
+    (typeof globalThis !== "undefined" && "indexedDB" in globalThis && !!(globalThis as any).indexedDB);
 
   if (!hasIndexedDb) {
     return null;

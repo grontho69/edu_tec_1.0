@@ -4,6 +4,7 @@ export interface ISubmissionQueue {
   push(job: ExamSubmissionJob): Promise<void>;
   drain(): Promise<void>;
   getPendingCount(): number;
+  processDirect?(job: ExamSubmissionJob): Promise<EvaluatedExamResult>;
 }
 
 /**
@@ -16,6 +17,10 @@ export class InMemorySubmissionQueue implements ISubmissionQueue {
   private activePromises = new Set<Promise<EvaluatedExamResult>>();
 
   constructor(private worker: ExamWorker) {}
+
+  async processDirect(job: ExamSubmissionJob): Promise<EvaluatedExamResult> {
+    return await this.worker.processSubmission(job);
+  }
 
   async push(job: ExamSubmissionJob): Promise<void> {
     this.queue.push(job);

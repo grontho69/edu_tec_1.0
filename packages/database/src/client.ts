@@ -17,12 +17,15 @@ export interface DatabaseContext {
   pglite?: PGlite;
 }
 
-let globalContext: DatabaseContext | null = null;
+const globalForDb = globalThis as unknown as {
+  admissionDbCtx?: DatabaseContext | undefined;
+};
 
 export interface CreateClientOptions {
   connectionString?: string;
   usePglite?: boolean;
   pgliteDataDir?: string;
+  poolMax?: number;
 }
 
 export function createDatabaseClient(options: CreateClientOptions = {}): DatabaseInstance {
@@ -31,37 +34,76 @@ export function createDatabaseClient(options: CreateClientOptions = {}): Databas
 }
 
 export function createDatabaseContext(options: CreateClientOptions = {}): DatabaseContext {
+  // If no custom overrides are passed and singleton exists, return it
+  if (!options.connectionString && !options.usePglite && !options.pgliteDataDir && globalForDb.admissionDbCtx) {
+    return globalForDb.admissionDbCtx;
+  }
+
   const connectionString = options.connectionString || process.env["DATABASE_URL"];
 
   if (options.usePglite || (!connectionString && !process.env["DATABASE_URL"])) {
     const pglite = new PGlite(options.pgliteDataDir);
     const db = drizzlePglite(pglite, { schema });
-    return {
+    const ctx: DatabaseContext = {
       db,
       clientType: "pglite",
       pglite,
     };
+    if (process.env["NODE_ENV"] !== "production") {
+      globalForDb.admissionDbCtx = ctx;
+    }
+    return ctx;
   }
 
+  const isServerless =
+    process.env["VERCEL"] === "1" ||
+    process.env["AWS_LAMBDA_FUNCTION_NAME"] !== undefined ||
+    process.env["NETLIFY"] === "true";
+
+  // Serverless pool tuning: keep connections per container minimal (1-5) to avoid exhausting free-tier Postgres limits
+  const maxPoolConnections =
+    options.poolMax ||
+    (process.env["DATABASE_POOL_MAX"]
+      ? parseInt(process.env["DATABASE_POOL_MAX"], 10)
+      : isServerless
+      ? 1
+      : 5);
+
+  const connStr = connectionString || "";
+  const requiresSsl =
+    connStr.includes("sslmode=require") ||
+    connStr.includes("supabase.co") ||
+    connStr.includes("neon.tech") ||
+    process.env["NODE_ENV"] === "production";
+
   const pool = new pg.Pool({
-    connectionString,
-    max: 20,
-    idleTimeoutMillis: 30000,
+    connectionString: connStr,
+    max: maxPoolConnections,
+    idleTimeoutMillis: 10000,
     connectionTimeoutMillis: 5000,
+    maxUses: isServerless ? 100 : 7500,
+    ssl: requiresSsl ? { rejectUnauthorized: false } : undefined,
   });
+
   const db = drizzleNodePg(pool, { schema });
-  return {
+  const ctx: DatabaseContext = {
     db,
     clientType: "node-postgres",
     pool,
   };
+
+  if (process.env["NODE_ENV"] !== "production" || isServerless) {
+    globalForDb.admissionDbCtx = ctx;
+  }
+
+  return ctx;
 }
 
 export function getDatabaseContext(): DatabaseContext {
-  if (!globalContext) {
-    globalContext = createDatabaseContext();
+  if (!globalForDb.admissionDbCtx) {
+    globalForDb.admissionDbCtx = createDatabaseContext();
   }
-  return globalContext;
+  return globalForDb.admissionDbCtx;
 }
 
 export function getDatabaseClient(): DatabaseInstance {
@@ -69,13 +111,13 @@ export function getDatabaseClient(): DatabaseInstance {
 }
 
 export async function closeDatabaseConnections(): Promise<void> {
-  if (globalContext) {
-    if (globalContext.pool) {
-      await globalContext.pool.end();
+  if (globalForDb.admissionDbCtx) {
+    if (globalForDb.admissionDbCtx.pool) {
+      await globalForDb.admissionDbCtx.pool.end();
     }
-    if (globalContext.pglite) {
-      await globalContext.pglite.close();
+    if (globalForDb.admissionDbCtx.pglite) {
+      await globalForDb.admissionDbCtx.pglite.close();
     }
-    globalContext = null;
+    globalForDb.admissionDbCtx = undefined;
   }
 }

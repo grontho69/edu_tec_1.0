@@ -38,4 +38,7 @@ export async function examsRoutes(app: FastifyInstance, opts: ExamsRoutesOptions
 
   // 5. Pre-warm Exam Paper in L1 Memory & L2 Redis
   app.post("/exams/:id/prewarm", async (req, rep) => examsController.prewarmExam(req, rep));
+
+  // 6. Upstash QStash / Serverless HTTP Webhook Worker Endpoint
+  app.post("/exams/worker/process", async (req, rep) => examsController.processWebhookJob(req, rep));
 }

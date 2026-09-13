@@ -62,14 +62,37 @@ export class ExamsController {
       // Tracking Ticket
       const ticketId = idempotencyKey || crypto.randomUUID();
 
-      // Push to non-blocking submission queue
-      await this.queue.push({
+      const job = {
         ticketId,
         examId,
         userId,
         answers: body.answers,
         clientSubmittedAt: body.clientSubmittedAt,
-      });
+      };
+
+      const isServerlessDirect =
+        process.env["SERVERLESS_DIRECT_EVAL"] === "true" ||
+        process.env["VERCEL"] === "1" ||
+        request.headers["x-serverless-eval"] === "true";
+
+      if (isServerlessDirect && typeof this.queue.processDirect === "function") {
+        const result = await this.queue.processDirect(job);
+        return reply.status(202).send({
+          status: "EVALUATED",
+          trackingTicket: ticketId,
+          message: "Submission evaluated immediately (Serverless execution mode).",
+          result: {
+            submissionId: result.submissionId,
+            rawScore: result.rawScore,
+            compositeScore: result.compositeScore,
+            totalCorrect: result.totalCorrect,
+            totalWrong: result.totalWrong,
+          },
+        });
+      }
+
+      // Push to non-blocking submission queue
+      await this.queue.push(job);
 
       // Respond within 150ms with HTTP 202 Accepted
       return reply.status(202).send({
@@ -130,6 +153,51 @@ export class ExamsController {
       return reply.status(400).send({
         success: false,
         error: err instanceof Error ? err.message : "Failed to prewarm exam.",
+      });
+    }
+  }
+
+  /**
+   * POST /api/v1/exams/worker/process
+   * Upstash QStash or Serverless HTTP webhook trigger for decoupled background grading.
+   */
+  async processWebhookJob(request: FastifyRequest, reply: FastifyReply) {
+    try {
+      const webhookSecret = process.env["QSTASH_SECRET"] || process.env["WORKER_SECRET"];
+      if (webhookSecret) {
+        const headerSecret = request.headers["x-worker-secret"] || request.headers["upstash-signature"];
+        if (headerSecret !== webhookSecret) {
+          return reply.status(401).send({ error: "Unauthorized webhook caller" });
+        }
+      }
+
+      const body = request.body as any;
+      if (!body || !body.examId || !body.answers) {
+        return reply.status(400).send({ error: "Invalid webhook job payload" });
+      }
+
+      const job = {
+        ticketId: body.ticketId || crypto.randomUUID(),
+        examId: body.examId,
+        userId: body.userId || "55555555-5555-5555-5555-555555555555",
+        answers: body.answers,
+        clientSubmittedAt: body.clientSubmittedAt || new Date().toISOString(),
+      };
+
+      const result =
+        typeof this.queue.processDirect === "function"
+          ? await this.queue.processDirect(job)
+          : await this.queue.push(job);
+
+      return reply.status(200).send({
+        success: true,
+        message: "Job evaluated via serverless HTTP webhook successfully",
+        result,
+      });
+    } catch (err) {
+      return reply.status(500).send({
+        success: false,
+        error: err instanceof Error ? err.message : "Failed to process webhook job",
       });
     }
   }
