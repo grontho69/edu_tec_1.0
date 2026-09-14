@@ -16,12 +16,7 @@ import {
   BarChart3,
   RefreshCw,
   LogOut,
-  User,
-<<<<<<< HEAD
-  loader2,
-=======
   Loader2,
->>>>>>> c6f1157 (fix(web): import Loader2 in dashboard page to fix build error)
 } from "lucide-react";
 import { fetchDashboardAnalytics } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";

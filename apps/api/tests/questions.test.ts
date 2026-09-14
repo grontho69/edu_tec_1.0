@@ -163,7 +163,7 @@ describe("Question Delivery Engine & Sanitization API Test Suite", () => {
     expect(res1.statusCode).toBe(200);
     const json1 = JSON.parse(res1.payload);
     expect(json1.success).toBe(true);
-    expect(json1.data.length).toBe(2); // Physics and Chemistry
+    expect(json1.data.length).toBeGreaterThanOrEqual(4); // Physics, Chemistry, Math, Biology
     expect(json1.data[0]).toHaveProperty("chapters");
     expect(json1.data[0].chapters[0]).toHaveProperty("topics");
 

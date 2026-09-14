@@ -15,8 +15,16 @@ export interface JwtPayload {
 export class JwtService {
   private secret: string;
 
-  constructor(secret = process.env["JWT_SECRET"] || "admission-engine-dev-secret-key-secure-2026") {
-    this.secret = secret;
+  constructor(secret?: string) {
+    if (secret) {
+      this.secret = secret;
+    } else if (process.env["JWT_SECRET"]) {
+      this.secret = process.env["JWT_SECRET"];
+    } else if (process.env["NODE_ENV"] === "production") {
+      throw new Error("FATAL: JWT_SECRET environment variable must be set in production.");
+    } else {
+      this.secret = "admission-engine-dev-secret-key-secure-2026";
+    }
   }
 
   private base64UrlEncode(data: string | Buffer): string {

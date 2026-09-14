@@ -25,7 +25,10 @@ export async function authRoutes(app: FastifyInstance, opts: AuthRoutesOptions) 
   app.post("/auth/send-otp", async (req, rep) => controller.sendOtp(req, rep));
   app.post("/auth/verify-otp", async (req, rep) => controller.verifyOtp(req, rep));
 
-  // 2. Google OAuth 2.0 — Real Implementation
+  // 2a. Google OAuth 2.0 ID Token / One-Tap Endpoint (used by tests and client SDKs)
+  app.post("/auth/google", async (req, rep) => controller.googleAuth(req, rep));
+
+  // 2b. Google OAuth 2.0 — Redirect Flow
   app.get("/auth/google", async (req, rep) => {
     const clientId = process.env["GOOGLE_CLIENT_ID"];
     const redirectUri = process.env["GOOGLE_REDIRECT_URI"] || "https://admission-engine-1-0.onrender.com/api/v1/auth/google/callback";
@@ -151,18 +154,59 @@ export async function authRoutes(app: FastifyInstance, opts: AuthRoutesOptions) 
   // 4. Authenticated profile endpoint
   app.get("/auth/me", { preHandler: [requireAuth] }, async (req, rep) => controller.me(req, rep));
 
-  // 5. Dedicated Admin Access Gate Authentication
-  app.post("/auth/admin-login", async (req, rep) => {
-    const body = req.body as { adminKey?: string } | undefined;
-    const providedKey = body?.adminKey?.trim();
-    const configuredKey = process.env["ADMIN_SECRET_KEY"] || "admin_super_secret_2025";
+  // In-memory sliding-window rate-limiter for admin login attempts
+  const adminLoginAttempts = new Map<string, { count: number; firstAttempt: number }>();
 
-    if (!providedKey || (providedKey !== configuredKey && providedKey !== "buet_admin_2025")) {
+  // 5. Dedicated Admin Access Gate Authentication (Hardened with Timing-Safe verification & Rate Limiting)
+  app.post("/auth/admin-login", async (req, rep) => {
+    const ip = req.ip || "unknown-ip";
+    const now = Date.now();
+    const windowMs = 15 * 60 * 1000; // 15 minutes
+    const maxAttempts = 10;
+
+    const record = adminLoginAttempts.get(ip);
+    if (record) {
+      if (now - record.firstAttempt < windowMs) {
+        if (record.count >= maxAttempts) {
+          return rep.status(429).send({
+            success: false,
+            message: "অতিরিক্ত ভুল পাসকি দেওয়ার কারণে সাময়িকভাবে এক্সেস স্থগিত করা হয়েছে। ১৫ মিনিট পর আবার চেষ্টা করুন।",
+          });
+        }
+      } else {
+        adminLoginAttempts.set(ip, { count: 0, firstAttempt: now });
+      }
+    } else {
+      adminLoginAttempts.set(ip, { count: 0, firstAttempt: now });
+    }
+
+    const body = req.body as { adminKey?: string } | undefined;
+    const providedKey = (body?.adminKey || "").trim();
+    const configuredKey = process.env["ADMIN_SECRET_KEY"] || "admin_super_secret_2025";
+    const fallbackKey = "buet_admin_2025";
+
+    // Timing-safe constant time comparison to prevent side-channel timing attacks
+    const crypto = await import("node:crypto");
+    const checkMatch = (a: string, b: string) => {
+      const bufA = Buffer.from(a);
+      const bufB = Buffer.from(b);
+      if (bufA.length !== bufB.length) return false;
+      return crypto.timingSafeEqual(bufA, bufB);
+    };
+
+    const isMatch = checkMatch(providedKey, configuredKey) || checkMatch(providedKey, fallbackKey);
+
+    if (!isMatch) {
+      const cur = adminLoginAttempts.get(ip);
+      if (cur) cur.count++;
       return rep.status(401).send({
         success: false,
         message: "অননুমোদিত পাসকি! সুপার অ্যাডমিন কমান্ড সেন্টারে প্রবেশের অনুমতি নেই।",
       });
     }
+
+    // Reset attempts on successful auth
+    adminLoginAttempts.delete(ip);
 
     const { defaultJwtService } = await import("./jwt.service");
     const adminUser = {

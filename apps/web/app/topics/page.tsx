@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 import {
   BookOpen,
   Atom,
@@ -17,36 +18,91 @@ import {
   Lightbulb,
   ArrowRight,
   Sparkles,
+  Database,
 } from "lucide-react";
 import { FALLBACK_TOPICS_CATALOG, FALLBACK_PRACTICE_QUESTIONS } from "@/lib/fallback-data";
+import { fetchTaxonomy, fetchQuestionsFeed } from "@/lib/api-client";
+import { TrieSearchEngine } from "@/lib/dsa/trie-search";
 import { LatexRenderer } from "@/components/latex-renderer";
 import { useAuthGuard } from "@/lib/with-auth";
 import { Loader2 } from "lucide-react";
 
 export default function TopicsPracticePage() {
   const { isLoading: authLoading } = useAuthGuard();
-  const [activeSubjectId, setActiveSubjectId] = useState("phy");
+  const [activeSubjectCode, setActiveSubjectCode] = useState("PHY");
   const [searchQuery, setSearchQuery] = useState("");
-  const [expandedChapter, setExpandedChapter] = useState<string>("phy-ch4");
-  const [selectedTopicId, setSelectedTopicId] = useState<number | null>(103);
+  const [expandedChapter, setExpandedChapter] = useState<string>("");
+  const [selectedTopicId, setSelectedTopicId] = useState<number | null>(null);
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({});
   const [showExplanations, setShowExplanations] = useState<Record<string, boolean>>({});
 
-  const activeSubject =
-    FALLBACK_TOPICS_CATALOG.find((s) => s.id === activeSubjectId) || FALLBACK_TOPICS_CATALOG[0];
-
-  // Filter questions for the selected topic
-  const questions = FALLBACK_PRACTICE_QUESTIONS.filter((q) => {
-    if (searchQuery.trim()) {
-      return (
-        q.questionText.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        q.chapter.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        q.topic.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        q.universityTag.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
-    return true;
+  // 1. Fetch live taxonomy from PostgreSQL
+  const { data: taxonomyData, isLoading: isTaxonomyLoading } = useQuery({
+    queryKey: ["taxonomy-catalog"],
+    queryFn: fetchTaxonomy,
+    staleTime: 5 * 60 * 1000,
   });
+
+  // 2. Fetch live questions from PostgreSQL
+  const { data: liveQuestions, isLoading: isQuestionsLoading } = useQuery({
+    queryKey: ["questions-feed"],
+    queryFn: () => fetchQuestionsFeed({ limit: 100 }),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const subjectsList = useMemo(() => {
+    if (Array.isArray(taxonomyData) && taxonomyData.length > 0) {
+      return taxonomyData;
+    }
+    return FALLBACK_TOPICS_CATALOG;
+  }, [taxonomyData]);
+
+  const activeSubject =
+    subjectsList.find((s: any) => s.code === activeSubjectCode || s.id === activeSubjectCode.toLowerCase()) ||
+    subjectsList[0];
+
+  const rawQuestions = useMemo(() => {
+    if (Array.isArray(liveQuestions) && liveQuestions.length > 0) {
+      return liveQuestions.map((q: any) => ({
+        id: String(q.id),
+        questionText: q.questionText,
+        options: q.options || [],
+        correctOptionId: q.correctOptionId,
+        explanation: q.explanation || "",
+        difficulty: q.difficulty || "MEDIUM",
+        universityTag: Array.isArray(q.universityTags) ? q.universityTags.join(", ") : (q.universityTag || "BUET"),
+        subjectId: q.subjectId,
+        chapterId: q.chapterId,
+        topicId: q.topicId,
+        chapter: q.chapterName || "",
+        topic: q.topicName || "",
+      }));
+    }
+    return FALLBACK_PRACTICE_QUESTIONS;
+  }, [liveQuestions]);
+
+  // 3. DSA Engine: Build Trie for instant sub-millisecond keyword retrieval
+  const trieEngine = useMemo(() => {
+    const trie = new TrieSearchEngine<(typeof rawQuestions)[0]>();
+    for (const q of rawQuestions) {
+      trie.insert(q.questionText, q);
+      if (q.chapter) trie.insert(q.chapter, q);
+      if (q.topic) trie.insert(q.topic, q);
+      if (q.universityTag) trie.insert(q.universityTag, q);
+    }
+    return trie;
+  }, [rawQuestions]);
+
+  // Fast Trie search when query is typed, otherwise standard filter
+  const questions = useMemo(() => {
+    if (searchQuery.trim()) {
+      return trieEngine.searchMultiWord(searchQuery.trim());
+    }
+    if (selectedTopicId) {
+      return rawQuestions.filter((q: any) => q.topicId === selectedTopicId);
+    }
+    return rawQuestions;
+  }, [searchQuery, selectedTopicId, rawQuestions, trieEngine]);
 
   const handleSelectOption = (qId: string, optId: string) => {
     setSelectedAnswers((prev) => ({ ...prev, [qId]: optId }));
@@ -94,10 +150,10 @@ export default function TopicsPracticePage() {
               <span>ড্যাশবোর্ড</span>
             </Link>
             <Link
-              href="/exams/8f8b89e2-1111-2222-3333-444455556666/room"
+              href="/exams"
               className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 shadow-xs"
             >
-              <span>আজকের মেগা টেস্ট</span>
+              <span>লাইভ মেগা টেস্ট</span>
             </Link>
           </div>
         </div>
@@ -122,14 +178,17 @@ export default function TopicsPracticePage() {
 
         {/* Subject Navigation Tabs */}
         <div className="flex overflow-x-auto pb-2 gap-2 mb-6 border-b border-zinc-200">
-          {FALLBACK_TOPICS_CATALOG.map((subject) => {
-            const isActive = subject.id === activeSubjectId;
+          {subjectsList.map((subject: any) => {
+            const subjectCode = subject.code || subject.id?.toUpperCase();
+            const isActive =
+              subjectCode === activeSubjectCode ||
+              subject.id === activeSubjectCode.toLowerCase();
             return (
               <button
                 key={subject.id}
                 onClick={() => {
-                  setActiveSubjectId(subject.id);
-                  if (subject.chapters[0]) {
+                  setActiveSubjectCode(subjectCode);
+                  if (subject.chapters?.[0]) {
                     setExpandedChapter(subject.chapters[0].id);
                   }
                 }}
@@ -141,13 +200,15 @@ export default function TopicsPracticePage() {
               >
                 {getSubjectIcon(subject.id)}
                 <span>{subject.name}</span>
-                <span
-                  className={`rounded-md px-1.5 py-0.2 text-[10px] ${
-                    isActive ? "bg-white/20 text-white" : "bg-zinc-100 text-zinc-500"
-                  }`}
-                >
-                  {subject.totalQuestions}টি
-                </span>
+                {subject.totalQuestions ? (
+                  <span
+                    className={`rounded-md px-1.5 py-0.2 text-[10px] ${
+                      isActive ? "bg-white/20 text-white" : "bg-zinc-100 text-zinc-500"
+                    }`}
+                  >
+                    {subject.totalQuestions}টি
+                  </span>
+                ) : null}
               </button>
             );
           })}
@@ -168,7 +229,7 @@ export default function TopicsPracticePage() {
               </div>
 
               <div className="space-y-2">
-                {activeSubject?.chapters.map((chapter) => {
+                {activeSubject?.chapters?.map((chapter: any) => {
                   const isExpanded = expandedChapter === chapter.id;
                   return (
                     <div
@@ -191,7 +252,7 @@ export default function TopicsPracticePage() {
 
                       {isExpanded && (
                         <div className="p-2 space-y-1 bg-white border-t border-zinc-100">
-                          {chapter.topics.map((topic) => {
+                          {chapter.topics?.map((topic: any) => {
                             const isSelected = selectedTopicId === topic.id;
                             return (
                               <button
@@ -276,7 +337,8 @@ export default function TopicsPracticePage() {
                       </div>
                       <div className="flex items-center space-x-2">
                         <span className="rounded-md bg-purple-50 text-purple-700 px-2 py-0.5 text-[11px] font-bold border border-purple-200">
-                          {q.universityTag} ({q.year})
+                          {q.universityTag}
+                          {(q as any).year ? ` (${(q as any).year})` : ""}
                         </span>
                         <span
                           className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${
@@ -299,7 +361,7 @@ export default function TopicsPracticePage() {
 
                     {/* Option Radios */}
                     <div className="space-y-2.5 mb-4">
-                      {q.options.map((opt) => {
+                      {q.options?.map((opt: any) => {
                         const isSelected = userAns === opt.id;
                         const isThisCorrect = opt.id === q.correctOptionId;
 

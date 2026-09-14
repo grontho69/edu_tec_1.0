@@ -429,3 +429,90 @@ export async function adminRejectDraft(draftId: string) {
     };
   }
 }
+
+export async function fetchTaxonomy() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/taxonomy`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    return json.data || json;
+  } catch (err) {
+    return FALLBACK_TOPICS_CATALOG;
+  }
+}
+
+export async function fetchQuestionsFeed(params?: {
+  subjectId?: number;
+  chapterId?: number;
+  topicId?: number;
+  limit?: number;
+  offset?: number;
+}) {
+  try {
+    const searchParams = new URLSearchParams();
+    if (params?.subjectId) searchParams.set("subjectId", String(params.subjectId));
+    if (params?.chapterId) searchParams.set("chapterId", String(params.chapterId));
+    if (params?.topicId) searchParams.set("topicId", String(params.topicId));
+    if (params?.limit) searchParams.set("limit", String(params.limit));
+    if (params?.offset) searchParams.set("offset", String(params.offset));
+
+    const res = await fetch(`${API_BASE_URL}/questions/feed?${searchParams.toString()}`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    return json.data || [];
+  } catch (err) {
+    return FALLBACK_PRACTICE_QUESTIONS;
+  }
+}
+
+export async function adminCreateQuestion(questionData: {
+  subjectId: number;
+  chapterId: number;
+  topicId?: number;
+  questionText: string;
+  options: Array<{ id: string; text: string; isLatex?: boolean }>;
+  correctOptionId: string;
+  explanation?: string;
+  latexFormulas?: string[];
+  marks?: string;
+  negativeMarks?: string;
+  difficulty?: "EASY" | "MEDIUM" | "HARD";
+  universityTags?: string[];
+}) {
+  const res = await fetch(`${API_BASE_URL}/admin/questions`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(questionData),
+  });
+  if (!res.ok) {
+    const errJson = await res.json().catch(() => ({}));
+    throw new Error(errJson.error || `HTTP ${res.status}`);
+  }
+  return await res.json();
+}
+
+export async function adminFetchLiveQuestions() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/questions`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    return json.data || [];
+  } catch (err) {
+    return [];
+  }
+}
+
+export async function adminCheckDbHealth() {
+  const res = await fetch(`${API_BASE_URL}/admin/db-health`, {
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return await res.json();
+}
+

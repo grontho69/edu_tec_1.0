@@ -39,8 +39,14 @@ export async function adminRoutes(app: FastifyInstance, opts: AdminRoutesOptions
     adminScope.get("/admin/students", async (req, rep) => controller.listStudents(req, rep));
     adminScope.get("/admin/students/:id", async (req, rep) => controller.getStudentAudit(req, rep));
 
-    // Multimodal AI Question Extraction Pipeline
+    // Multimodal AI Question Extraction Pipeline (with aliases)
     adminScope.post("/admin/ingestion/extract", async (req, rep) =>
+      controller.extractQuestions(req, rep)
+    );
+    adminScope.post("/admin/extract", async (req, rep) =>
+      controller.extractQuestions(req, rep)
+    );
+    adminScope.post("/admin/questions/extract", async (req, rep) =>
       controller.extractQuestions(req, rep)
     );
 
@@ -58,13 +64,64 @@ export async function adminRoutes(app: FastifyInstance, opts: AdminRoutesOptions
       controller.rejectDraft(req, rep)
     );
 
-    // Live Questions Bank
+    // Live Questions Bank & Direct Question Creation
     adminScope.get("/admin/questions", async (_request, reply) => {
-      const allQuestions = await db.select().from(questions).limit(50);
+      const allQuestions = await db.select().from(questions).limit(100);
       return reply.status(200).send({
         success: true,
         count: allQuestions.length,
         data: allQuestions,
+      });
+    });
+
+    adminScope.post("/admin/questions", async (request, reply) => {
+      const body = request.body as any;
+      if (!body?.questionText || !body?.options || !body?.correctOptionId) {
+        return reply.status(400).send({
+          success: false,
+          error: "questionText, options, and correctOptionId are required",
+        });
+      }
+
+      const [inserted] = await db
+        .insert(questions)
+        .values({
+          tenantId: "DIRECT_B2C",
+          subjectId: body.subjectId || 1,
+          chapterId: body.chapterId || 1,
+          topicId: body.topicId || null,
+          questionText: body.questionText,
+          questionType: "MCQ",
+          options: body.options,
+          correctOptionId: body.correctOptionId,
+          explanation: body.explanation || "",
+          latexFormulas: body.latexFormulas || [],
+          marks: body.marks || "1.00",
+          negativeMarks: body.negativeMarks || "0.25",
+          difficulty: body.difficulty || "MEDIUM",
+          universityTags: body.universityTags || ["BUET", "DU_KA"],
+          isActive: true,
+        })
+        .returning();
+
+      return reply.status(201).send({
+        success: true,
+        message: "Question created and published to live bank successfully.",
+        data: inserted,
+      });
+    });
+
+    // DB Health Check for Admin Panel
+    adminScope.get("/admin/db-health", async (_request, reply) => {
+      const start = Date.now();
+      const countRes = await db.select().from(questions).limit(1);
+      const latencyMs = Date.now() - start;
+
+      return reply.status(200).send({
+        success: true,
+        database: "connected",
+        latencyMs,
+        sampleChecked: countRes.length > 0,
       });
     });
   });

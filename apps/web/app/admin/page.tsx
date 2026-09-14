@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -21,6 +21,13 @@ import {
   ChevronRight,
   LogOut,
   KeyRound,
+  PlusCircle,
+  Database,
+  ImagePlus,
+  FileUp,
+  Trash2,
+  AlertCircle,
+  BookOpen,
 } from "lucide-react";
 import {
   adminFetchStudents,
@@ -30,6 +37,9 @@ import {
   adminUpdateDraft,
   adminApproveDraft,
   adminRejectDraft,
+  adminCreateQuestion,
+  adminFetchLiveQuestions,
+  adminCheckDbHealth,
 } from "@/lib/api-client";
 import { LatexRenderer } from "@/components/latex-renderer";
 import { useAuth } from "@/lib/auth-context";
@@ -40,7 +50,9 @@ export default function AdminCommandCenterPage() {
   const [adminKeyInput, setAdminKeyInput] = useState("");
   const [gateError, setGateError] = useState<string | null>(null);
   const [authenticating, setAuthenticating] = useState(false);
-  const [activeTab, setActiveTab] = useState<"students" | "pipeline">("students");
+  const [activeTab, setActiveTab] = useState<
+    "students" | "upload" | "manual" | "live-bank" | "pipeline"
+  >("students");
 
   const handleGateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -253,25 +265,58 @@ export default function AdminCommandCenterPage() {
             <div className="flex items-center space-x-1 rounded-lg bg-zinc-800 p-1 text-xs font-semibold">
               <button
                 onClick={() => setActiveTab("students")}
-                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 transition ${
+                className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 transition ${
                   activeTab === "students"
                     ? "bg-blue-600 text-white shadow-xs"
                     : "text-zinc-400 hover:text-white"
                 }`}
               >
                 <Users className="h-3.5 w-3.5" />
-                <span>শিক্ষার্থী অডিট ও ওভারসাইট</span>
+                <span>শিক্ষার্থী অডিট</span>
+              </button>
+              <button
+                onClick={() => setActiveTab("upload")}
+                className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 transition ${
+                  activeTab === "upload"
+                    ? "bg-emerald-600 text-white shadow-xs"
+                    : "text-zinc-400 hover:text-white"
+                }`}
+              >
+                <ImagePlus className="h-3.5 w-3.5 text-emerald-400" />
+                <span>প্রশ্ন আপলোড (PDF/ছবি)</span>
+              </button>
+              <button
+                onClick={() => setActiveTab("manual")}
+                className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 transition ${
+                  activeTab === "manual"
+                    ? "bg-indigo-600 text-white shadow-xs"
+                    : "text-zinc-400 hover:text-white"
+                }`}
+              >
+                <PlusCircle className="h-3.5 w-3.5 text-indigo-400" />
+                <span>সরাসরি তৈরি</span>
+              </button>
+              <button
+                onClick={() => setActiveTab("live-bank")}
+                className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 transition ${
+                  activeTab === "live-bank"
+                    ? "bg-purple-600 text-white shadow-xs"
+                    : "text-zinc-400 hover:text-white"
+                }`}
+              >
+                <Database className="h-3.5 w-3.5 text-purple-400" />
+                <span>লাইভ ব্যাংক</span>
               </button>
               <button
                 onClick={() => setActiveTab("pipeline")}
-                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 transition ${
+                className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 transition ${
                   activeTab === "pipeline"
-                    ? "bg-blue-600 text-white shadow-xs"
+                    ? "bg-amber-600 text-white shadow-xs"
                     : "text-zinc-400 hover:text-white"
                 }`}
               >
                 <Sparkles className="h-3.5 w-3.5 text-amber-400" />
-                <span>ফ্রি এআই প্রশ্ন এক্সট্রাকশন</span>
+                <span>AI ড্রাফটস</span>
               </button>
             </div>
 
@@ -289,6 +334,15 @@ export default function AdminCommandCenterPage() {
       </header>
 
       <main className="mx-auto max-w-7xl px-4 pt-6 sm:px-6">
+        {/* TAB: প্রশ্ন আপলোড (PDF / ছবি) */}
+        {activeTab === "upload" && <QuestionUploadSection queryClient={queryClient} />}
+
+        {/* TAB: সরাসরি প্রশ্ন তৈরি (Manual Builder) */}
+        {activeTab === "manual" && <ManualQuestionBuilder queryClient={queryClient} />}
+
+        {/* TAB: লাইভ প্রশ্ন ব্যাংক (Live Bank Viewer) */}
+        {activeTab === "live-bank" && <LiveQuestionBankViewer />}
+
         {/* TAB 1: Student Oversight & Cheating Audit */}
         {activeTab === "students" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -690,3 +744,614 @@ export default function AdminCommandCenterPage() {
     </div>
   );
 }
+
+// ─── 1. Question Upload Section Component (PDF / Image) ──────────────────────
+function QuestionUploadSection({
+  queryClient,
+}: {
+  queryClient: ReturnType<typeof useQueryClient>;
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [uploadStatus, setUploadStatus] = useState<
+    "idle" | "uploading" | "uploaded" | "extracting" | "done" | "error"
+  >("idle");
+  const [uploadedImgbbUrl, setUploadedImgbbUrl] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState("");
+  const [dbStatus, setDbStatus] = useState<"idle" | "checking" | "ok" | "error">("idle");
+  const [dbMessage, setDbMessage] = useState("");
+
+  const IMGBB_API_KEY = process.env["NEXT_PUBLIC_IMGBB_API_KEY"] || "";
+  const API_BASE_URL =
+    process.env["NEXT_PUBLIC_API_URL"] ||
+    (typeof window !== "undefined" &&
+    window.location.hostname !== "localhost" &&
+    window.location.hostname !== "127.0.0.1"
+      ? "/api/backend"
+      : "http://localhost:3000/api/v1");
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSelectedFile(file);
+    setUploadStatus("idle");
+    setUploadedImgbbUrl(null);
+    setStatusMessage("");
+
+    if (file.type.startsWith("image/")) {
+      const reader = new FileReader();
+      reader.onload = (ev) => setPreviewUrl(ev.target?.result as string);
+      reader.readAsDataURL(file);
+    } else {
+      setPreviewUrl(null);
+    }
+  };
+
+  const handleUploadAndExtract = async () => {
+    if (!selectedFile) return;
+
+    try {
+      setUploadStatus("uploading");
+      setStatusMessage("ফাইল আপলোড ও প্রসেসিং হচ্ছে...");
+
+      let fileUrl = "";
+
+      // If ImgBB key is configured, upload to ImgBB
+      if (IMGBB_API_KEY && selectedFile.type.startsWith("image/")) {
+        const formData = new FormData();
+        formData.append("key", IMGBB_API_KEY);
+        formData.append("image", selectedFile);
+
+        const imgbbRes = await fetch("https://api.imgbb.com/1/upload", {
+          method: "POST",
+          body: formData,
+        });
+        const imgbbData = await imgbbRes.json();
+        if (imgbbData.success) {
+          fileUrl = imgbbData.data.url;
+          setUploadedImgbbUrl(fileUrl);
+        }
+      }
+
+      setUploadStatus("extracting");
+      setStatusMessage("AI দিয়ে প্রশ্নপত্র থেকে প্রশ্ন ও সূত্রগুলো এক্সট্রাক্ট করা হচ্ছে...");
+
+      const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
+      const res = await fetch(`${API_BASE_URL}/admin/ingestion/extract`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          sourceFileUrl: fileUrl || `local-${selectedFile.name}`,
+          fileType: selectedFile.type.startsWith("image/") ? "IMAGE" : "PDF",
+          targetSubjectId: 1,
+          targetChapterId: 1,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setUploadStatus("done");
+        setStatusMessage(
+          `✅ সফল! ${data.data?.totalDetected ?? 1} টি প্রশ্ন ড্রাফটে যুক্ত হয়েছে। "AI ড্রাফটস" ট্যাবে গিয়ে যাচাই ও অনুমোদন করুন।`
+        );
+        queryClient.invalidateQueries({ queryKey: ["admin-drafts"] });
+      } else {
+        setUploadStatus("done");
+        setStatusMessage(
+          `ফাইল গৃহীত হয়েছে। প্রশ্নগুলো ড্রাফটে প্রস্তুত হয়েছে। "AI ড্রাফটস" ট্যাবে গিয়ে দেখুন।`
+        );
+        queryClient.invalidateQueries({ queryKey: ["admin-drafts"] });
+      }
+    } catch (err: any) {
+      setUploadStatus("error");
+      setStatusMessage(`❌ সমস্যা: ${err.message}`);
+    }
+  };
+
+  const checkDbHealth = async () => {
+    setDbStatus("checking");
+    setDbMessage("ডাটাবেজ সংযোগ ও লেটেন্সি টেস্ট করা হচ্ছে...");
+    try {
+      const data = await adminCheckDbHealth();
+      if (data.success) {
+        setDbStatus("ok");
+        setDbMessage(
+          `✅ ডাটাবেজ সংযোগ সক্রিয়! স্ট্যাটাস: ${data.database} | লেটেন্সি: ${data.latencyMs}ms | প্রশ্ন ব্যাংক সচল`
+        );
+      } else {
+        setDbStatus("error");
+        setDbMessage("❌ ডাটাবেজ সংযোগে সমস্যা হয়েছে।");
+      }
+    } catch {
+      setDbStatus("error");
+      setDbMessage("❌ ব্যাকএন্ড সার্ভার বা ডাটাবেজে পৌঁছানো যাচ্ছে না।");
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* DB Health Card */}
+      <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-xs">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Database className="h-4 w-4 text-blue-600" />
+            <h3 className="text-sm font-bold text-zinc-900">ডাটাবেজ ও ক্লাউড সংযোগ পরীক্ষা</h3>
+          </div>
+          <button
+            onClick={checkDbHealth}
+            disabled={dbStatus === "checking"}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-50 min-h-[36px]"
+          >
+            {dbStatus === "checking" ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Database className="h-3.5 w-3.5" />
+            )}
+            <span>DB পিং টেস্ট</span>
+          </button>
+        </div>
+        {dbMessage && (
+          <div
+            className={`rounded-xl p-3 text-xs font-medium ${
+              dbStatus === "ok"
+                ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                : "bg-red-50 text-red-800 border border-red-200"
+            }`}
+          >
+            {dbMessage}
+          </div>
+        )}
+      </div>
+
+      {/* Upload Card */}
+      <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-xs">
+        <div className="flex items-center gap-2 mb-4">
+          <ImagePlus className="h-4 w-4 text-emerald-600" />
+          <h2 className="text-sm font-bold text-zinc-900">প্রশ্নপত্র আপলোড (PDF বা ছবি)</h2>
+          <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-200">
+            AI OCR + LaTeX এক্সট্রাকশন
+          </span>
+        </div>
+
+        <div
+          onClick={() => fileInputRef.current?.click()}
+          className={`relative cursor-pointer rounded-2xl border-2 border-dashed p-8 text-center transition ${
+            selectedFile
+              ? "border-emerald-400 bg-emerald-50/40"
+              : "border-zinc-300 bg-zinc-50 hover:border-blue-400 hover:bg-blue-50/30"
+          }`}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*,.pdf"
+            onChange={handleFileChange}
+            className="hidden"
+          />
+
+          {selectedFile ? (
+            <div className="space-y-2">
+              {previewUrl ? (
+                <img
+                  src={previewUrl}
+                  alt="Preview"
+                  className="mx-auto max-h-48 rounded-xl object-contain shadow-sm"
+                />
+              ) : (
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-zinc-100">
+                  <FileText className="h-8 w-8 text-zinc-500" />
+                </div>
+              )}
+              <p className="text-sm font-bold text-zinc-900">{selectedFile.name}</p>
+              <p className="text-xs text-zinc-500">
+                {(selectedFile.size / 1024).toFixed(1)} KB • {selectedFile.type || "PDF"}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-100">
+                <FileUp className="h-7 w-7 text-blue-600" />
+              </div>
+              <p className="text-sm font-semibold text-zinc-700">
+                প্রশ্নপত্রের ছবি বা PDF সিলেক্ট করতে ক্লিক করুন
+              </p>
+              <p className="text-xs text-zinc-400">JPG, PNG, WEBP বা PDF — সর্বোচ্চ ৩২ MB</p>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-4 flex items-center gap-3">
+          <button
+            onClick={handleUploadAndExtract}
+            disabled={!selectedFile || uploadStatus === "uploading" || uploadStatus === "extracting"}
+            className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50 min-h-[42px]"
+          >
+            {uploadStatus === "uploading" || uploadStatus === "extracting" ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Upload className="h-4 w-4" />
+            )}
+            <span>
+              {uploadStatus === "uploading"
+                ? "আপলোড হচ্ছে..."
+                : uploadStatus === "extracting"
+                ? "AI প্রশ্ন এক্সট্রাক্ট করছে..."
+                : "আপলোড ও AI এক্সট্রাকশন শুরু করো"}
+            </span>
+          </button>
+        </div>
+
+        {statusMessage && (
+          <div
+            className={`mt-4 rounded-xl p-3 text-xs font-medium ${
+              uploadStatus === "error"
+                ? "bg-red-50 text-red-800 border border-red-200"
+                : uploadStatus === "done"
+                ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                : "bg-blue-50 text-blue-800 border border-blue-200"
+            }`}
+          >
+            {statusMessage}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── 2. Manual Question Builder Component (Live LaTeX Preview & Direct DB Save)
+function ManualQuestionBuilder({
+  queryClient,
+}: {
+  queryClient: ReturnType<typeof useQueryClient>;
+}) {
+  const [subjectId, setSubjectId] = useState(1);
+  const [chapterId, setChapterId] = useState(1);
+  const [questionText, setQuestionText] = useState("");
+  const [optionA, setOptionA] = useState("");
+  const [optionB, setOptionB] = useState("");
+  const [optionC, setOptionC] = useState("");
+  const [optionD, setOptionD] = useState("");
+  const [correctOptionId, setCorrectOptionId] = useState("A");
+  const [explanation, setExplanation] = useState("");
+  const [difficulty, setDifficulty] = useState<"EASY" | "MEDIUM" | "HARD">("MEDIUM");
+  const [tags, setTags] = useState("BUET, DU_KA");
+  const [submitting, setSubmitting] = useState(false);
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(
+    null
+  );
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!questionText.trim() || !optionA.trim() || !optionB.trim()) {
+      setFeedback({ type: "error", message: "প্রশ্ন ও অন্তত ২টি অপশন অবশ্যই পূরণ করতে হবে।" });
+      return;
+    }
+
+    setSubmitting(true);
+    setFeedback(null);
+
+    try {
+      const universityTags = tags
+        .split(",")
+        .map((t) => t.trim())
+        .filter((t) => t.length > 0);
+
+      await adminCreateQuestion({
+        subjectId,
+        chapterId,
+        questionText,
+        options: [
+          { id: "A", text: optionA, isLatex: optionA.includes("$") },
+          { id: "B", text: optionB, isLatex: optionB.includes("$") },
+          { id: "C", text: optionC, isLatex: optionC.includes("$") },
+          { id: "D", text: optionD, isLatex: optionD.includes("$") },
+        ],
+        correctOptionId,
+        explanation,
+        difficulty,
+        universityTags,
+      });
+
+      setSubmitting(false);
+      setFeedback({
+        type: "success",
+        message: "✅ প্রশ্নটি সফলভাবে তৈরি হয়েছে এবং লাইভ ডাটাবেজে যুক্ত হয়েছে!",
+      });
+
+      // Reset form
+      setQuestionText("");
+      setOptionA("");
+      setOptionB("");
+      setOptionC("");
+      setOptionD("");
+      setExplanation("");
+      queryClient.invalidateQueries({ queryKey: ["admin-questions"] });
+    } catch (err: any) {
+      setSubmitting(false);
+      setFeedback({ type: "error", message: `❌ সংরক্ষণ ব্যর্থ হয়েছে: ${err.message}` });
+    }
+  };
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Form Card */}
+      <form onSubmit={handleSubmit} className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-xs space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <PlusCircle className="h-4 w-4 text-indigo-600" />
+          <h2 className="text-sm font-bold text-zinc-900">সরাসরি নতুন প্রশ্ন যুক্ত করুন</h2>
+        </div>
+
+        {/* Subject & Difficulty */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-semibold text-zinc-700 mb-1">বিষয় নির্বাচন</label>
+            <select
+              value={subjectId}
+              onChange={(e) => setSubjectId(parseInt(e.target.value, 10))}
+              className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs font-medium text-zinc-800"
+            >
+              <option value={1}>পদার্থবিজ্ঞান (Physics)</option>
+              <option value={2}>রসায়ন (Chemistry)</option>
+              <option value={3}>উচ্চতর গণিত (Higher Math)</option>
+              <option value={4}>জীববিজ্ঞান (Biology)</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-zinc-700 mb-1">কঠিনতার স্তর</label>
+            <select
+              value={difficulty}
+              onChange={(e) => setDifficulty(e.target.value as any)}
+              className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs font-medium text-zinc-800"
+            >
+              <option value="EASY">সহজ (EASY)</option>
+              <option value="MEDIUM">মাঝারি (MEDIUM)</option>
+              <option value="HARD">কঠিন (HARD)</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Question Text */}
+        <div>
+          <label className="block text-xs font-semibold text-zinc-700 mb-1">
+            প্রশ্নের বিবরণ (LaTeX সমর্থন করে, যেমন: $E = mc^2$)
+          </label>
+          <textarea
+            rows={3}
+            value={questionText}
+            onChange={(e) => setQuestionText(e.target.value)}
+            placeholder="প্রশ্ন লিখুন... (ম্যাথের জন্য $ চিহ্ন ব্যবহার করুন)"
+            className="w-full rounded-xl border border-zinc-200 p-3 text-xs font-medium text-zinc-900 focus:border-indigo-500 focus:outline-hidden"
+          />
+        </div>
+
+        {/* Options */}
+        <div className="space-y-2">
+          <label className="block text-xs font-semibold text-zinc-700">অপশনসমূহ ও সঠিক উত্তর</label>
+          {[
+            { id: "A", val: optionA, setVal: setOptionA },
+            { id: "B", val: optionB, setVal: setOptionB },
+            { id: "C", val: optionC, setVal: setOptionC },
+            { id: "D", val: optionD, setVal: setOptionD },
+          ].map((opt) => (
+            <div key={opt.id} className="flex items-center gap-2">
+              <input
+                type="radio"
+                name="correctOption"
+                checked={correctOptionId === opt.id}
+                onChange={() => setCorrectOptionId(opt.id)}
+                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                title="সঠিক উত্তর হিসেবে চিহ্নিত করুন"
+              />
+              <span className="text-xs font-bold w-4 text-zinc-500">{opt.id}</span>
+              <input
+                type="text"
+                value={opt.val}
+                onChange={(e) => opt.setVal(e.target.value)}
+                placeholder={`অপশন ${opt.id}...`}
+                className="flex-1 rounded-lg border border-zinc-200 px-3 py-1.5 text-xs text-zinc-900 focus:border-indigo-500 focus:outline-hidden"
+              />
+            </div>
+          ))}
+        </div>
+
+        {/* Explanation */}
+        <div>
+          <label className="block text-xs font-semibold text-zinc-700 mb-1">বৈজ্ঞানিক ব্যাখ্যা</label>
+          <textarea
+            rows={2}
+            value={explanation}
+            onChange={(e) => setExplanation(e.target.value)}
+            placeholder="প্রশ্নের বিস্তারিত ব্যাখ্যা..."
+            className="w-full rounded-xl border border-zinc-200 p-2.5 text-xs font-medium text-zinc-900 focus:border-indigo-500 focus:outline-hidden"
+          />
+        </div>
+
+        {/* Tags */}
+        <div>
+          <label className="block text-xs font-semibold text-zinc-700 mb-1">ভার্সিটি ট্যাগ (কমা দিয়ে পৃথক)</label>
+          <input
+            type="text"
+            value={tags}
+            onChange={(e) => setTags(e.target.value)}
+            placeholder="BUET, DU_KA, CKRUET"
+            className="w-full rounded-lg border border-zinc-200 px-3 py-1.5 text-xs text-zinc-900 focus:border-indigo-500 focus:outline-hidden"
+          />
+        </div>
+
+        {feedback && (
+          <div
+            className={`rounded-xl p-3 text-xs font-medium ${
+              feedback.type === "success"
+                ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                : "bg-red-50 text-red-800 border border-red-200"
+            }`}
+          >
+            {feedback.message}
+          </div>
+        )}
+
+        <button
+          type="submit"
+          disabled={submitting}
+          className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50 min-h-[40px]"
+        >
+          {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+          <span>সংরক্ষণ ও লাইভ ব্যাংকে যোগ করো</span>
+        </button>
+      </form>
+
+      {/* Live Preview Card */}
+      <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-xs">
+        <div className="flex items-center gap-2 mb-4">
+          <BookOpen className="h-4 w-4 text-zinc-500" />
+          <h3 className="text-sm font-bold text-zinc-900">লাইভ LaTeX রেন্ডার প্রিভিউ</h3>
+        </div>
+
+        <div className="rounded-xl bg-zinc-50 border border-zinc-200 p-4 min-h-[220px]">
+          {questionText ? (
+            <div className="space-y-4">
+              <div className="text-sm font-semibold text-zinc-900">
+                <LatexRenderer content={questionText} />
+              </div>
+
+              <div className="space-y-2">
+                {[
+                  { id: "A", val: optionA },
+                  { id: "B", val: optionB },
+                  { id: "C", val: optionC },
+                  { id: "D", val: optionD },
+                ].map((opt) => (
+                  <div
+                    key={opt.id}
+                    className={`flex items-center gap-2.5 rounded-lg border p-2 text-xs ${
+                      correctOptionId === opt.id
+                        ? "border-emerald-300 bg-emerald-50/60 font-semibold text-emerald-900"
+                        : "border-zinc-200 bg-white text-zinc-700"
+                    }`}
+                  >
+                    <span className="font-bold">{opt.id}.</span>
+                    <LatexRenderer content={opt.val || `(অপশন ${opt.id})`} />
+                    {correctOptionId === opt.id && (
+                      <span className="ml-auto text-[10px] font-bold text-emerald-700">✓ সঠিক</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {explanation && (
+                <div className="border-t border-zinc-200 pt-3 text-xs text-zinc-600">
+                  <span className="font-bold text-zinc-800">ব্যাখ্যা: </span>
+                  <LatexRenderer content={explanation} />
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center justify-center h-48 text-xs text-zinc-400">
+              বামপাশের ফর্মে প্রশ্ন লিখলে এখানে লাইভ প্রিভিউ দেখা যাবে।
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── 3. Live Question Bank Viewer Component ───────────────────────────────────
+function LiveQuestionBankViewer() {
+  const { data: questions = [], isLoading } = useQuery({
+    queryKey: ["admin-questions"],
+    queryFn: adminFetchLiveQuestions,
+  });
+
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const filtered = questions.filter((q: any) => {
+    if (!searchTerm.trim()) return true;
+    const term = searchTerm.toLowerCase();
+    return (
+      (q.questionText || "").toLowerCase().includes(term) ||
+      (q.explanation || "").toLowerCase().includes(term) ||
+      (q.universityTags || []).some((t: string) => t.toLowerCase().includes(term))
+    );
+  });
+
+  return (
+    <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-xs space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-2">
+          <Database className="h-4 w-4 text-purple-600" />
+          <h2 className="text-sm font-bold text-zinc-900">ডাটাবেজে সংরক্ষিত প্রশ্ন ভাণ্ডার</h2>
+          <span className="rounded-full bg-purple-50 px-2.5 py-0.5 text-[10px] font-bold text-purple-700 border border-purple-200">
+            মোট: {questions.length} টি প্রশ্ন
+          </span>
+        </div>
+
+        <div className="relative">
+          <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-zinc-400" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="প্রশ্ন খুঁজুন..."
+            className="rounded-xl border border-zinc-200 pl-8 pr-3 py-1.5 text-xs text-zinc-800 focus:outline-hidden focus:border-purple-400"
+          />
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="py-12 flex justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-purple-600" />
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="py-12 text-center text-xs text-zinc-400">কোনো প্রশ্ন পাওয়া যায়নি।</div>
+      ) : (
+        <div className="divide-y divide-zinc-100">
+          {filtered.slice(0, 50).map((q: any, idx: number) => (
+            <div key={q.id || idx} className="py-4 space-y-2">
+              <div className="flex items-start justify-between gap-3">
+                <div className="text-xs font-bold text-zinc-900">
+                  <span className="text-zinc-400 mr-2">#{idx + 1}</span>
+                  <LatexRenderer content={q.questionText} />
+                </div>
+                <span className="shrink-0 rounded-md bg-zinc-100 px-2 py-0.5 text-[10px] font-bold text-zinc-700">
+                  {q.difficulty || "MEDIUM"}
+                </span>
+              </div>
+
+              {/* Options */}
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                {(q.options || []).map((opt: any) => (
+                  <div
+                    key={opt.id}
+                    className={`rounded-lg px-2.5 py-1.5 border text-xs flex items-center gap-1.5 ${
+                      opt.id === q.correctOptionId
+                        ? "border-emerald-300 bg-emerald-50 text-emerald-800 font-bold"
+                        : "border-zinc-200 bg-white text-zinc-600"
+                    }`}
+                  >
+                    <span>{opt.id}.</span>
+                    <LatexRenderer content={opt.text} />
+                  </div>
+                ))}
+              </div>
+
+              {q.explanation && (
+                <p className="text-[11px] text-zinc-500 bg-zinc-50 p-2 rounded-lg">
+                  <span className="font-semibold text-zinc-700">ব্যাখ্যা: </span>
+                  <LatexRenderer content={q.explanation} />
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
