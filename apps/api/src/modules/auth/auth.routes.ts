@@ -25,10 +25,118 @@ export async function authRoutes(app: FastifyInstance, opts: AuthRoutesOptions) 
   app.post("/auth/send-otp", async (req, rep) => controller.sendOtp(req, rep));
   app.post("/auth/verify-otp", async (req, rep) => controller.verifyOtp(req, rep));
 
-  // 2. Google OAuth 2.0 Endpoint
-  app.post("/auth/google", async (req, rep) => controller.googleAuth(req, rep));
+  // 2. Google OAuth 2.0 — Real Implementation
+  app.get("/auth/google", async (req, rep) => {
+    const clientId = process.env["GOOGLE_CLIENT_ID"] || "";
+    const redirectUri = process.env["GOOGLE_REDIRECT_URI"] || "https://admission-engine-1-0.onrender.com/api/v1/auth/google/callback";
+    const redirect = (req.query as any)?.redirect || "/dashboard";
 
-  // 3. Passwordless Email Magic Link Endpoints
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      response_type: "code",
+      scope: "openid email profile",
+      access_type: "offline",
+      prompt: "select_account",
+      state: encodeURIComponent(redirect),
+    });
+    return rep.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
+  });
+
+  app.get("/auth/google/callback", async (req, rep) => {
+    const { code, state, error } = req.query as { code?: string; state?: string; error?: string };
+    const frontendBase = process.env["FRONTEND_URL"] || "https://web-theta-jade-69.vercel.app";
+    const redirect = state ? decodeURIComponent(state) : "/dashboard";
+
+    if (error || !code) {
+      return rep.redirect(`${frontendBase}/auth/callback?error=oauth_failed`);
+    }
+
+    try {
+      const clientId = process.env["GOOGLE_CLIENT_ID"] || "";
+      const clientSecret = process.env["GOOGLE_CLIENT_SECRET"] || "";
+      const redirectUri = process.env["GOOGLE_REDIRECT_URI"] || "https://admission-engine-1-0.onrender.com/api/v1/auth/google/callback";
+
+      // Exchange code for tokens
+      const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          code,
+          client_id: clientId,
+          client_secret: clientSecret,
+          redirect_uri: redirectUri,
+          grant_type: "authorization_code",
+        }),
+      });
+      const tokenData = await tokenRes.json() as { access_token?: string; id_token?: string; error?: string };
+      if (!tokenRes.ok || !tokenData.access_token) {
+        throw new Error(tokenData.error || "Token exchange failed");
+      }
+
+      // Get user info from Google
+      const userInfoRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` },
+      });
+      const googleUser = await userInfoRes.json() as {
+        sub: string; email: string; name: string; email_verified: boolean;
+      };
+      if (!googleUser.email) throw new Error("No email from Google");
+
+      // Find or create user in DB
+      const { users, userAnalytics } = await import("@admission-engine/database");
+      const { eq } = await import("drizzle-orm");
+      const { defaultJwtService } = await import("./jwt.service");
+
+      let [existingUser] = await opts.db
+        .select().from(users).where(eq(users.email, googleUser.email.toLowerCase())).limit(1);
+
+      if (!existingUser) {
+        const safeName = (googleUser.name ?? googleUser.email.split("@")[0]) as string;
+        const [newUser] = await opts.db.insert(users).values({
+          tenantId: "DIRECT_B2C",
+          role: "STUDENT",
+          targetUnit: "ENGINEERING",
+          email: googleUser.email.toLowerCase(),
+          fullName: safeName,
+        } as any).returning();
+        existingUser = newUser!;
+        await opts.db.insert(userAnalytics).values({
+          userId: existingUser.id,
+          totalExamsTaken: 0,
+          totalQuestionsAttempted: 0,
+          totalQuestionsCorrect: 0,
+          overallAccuracy: "0.00",
+          totalStudyTimeSeconds: 0,
+          streakDays: 0,
+          lastActiveAt: null,
+        }).onConflictDoNothing();
+      }
+
+      const jwtToken = defaultJwtService.sign({
+        userId: existingUser.id,
+        role: existingUser.role,
+        email: existingUser.email,
+      });
+
+      const userPayload = encodeURIComponent(JSON.stringify({
+        id: existingUser.id,
+        role: existingUser.role,
+        email: existingUser.email,
+        fullName: existingUser.fullName,
+        targetUnit: existingUser.targetUnit,
+      }));
+
+      return rep.redirect(
+        `${frontendBase}/auth/callback?token=${jwtToken}&user=${userPayload}&redirect=${encodeURIComponent(redirect)}`
+      );
+    } catch (err: any) {
+      console.error("Google OAuth callback error:", err);
+      return rep.redirect(`${frontendBase}/auth/callback?error=server_error`);
+    }
+  });
+
+  // (Legacy magic link endpoints)
   app.post("/auth/magic-link", async (req, rep) => controller.magicLink(req, rep));
   app.post("/auth/verify-magic-link", async (req, rep) => controller.verifyMagicLink(req, rep));
 
