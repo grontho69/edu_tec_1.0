@@ -20,20 +20,46 @@ export async function questionsRoutes(app: FastifyInstance, opts: { db: Database
       offset?: string;
     };
 
-    const { questions } = await import("@admission-engine/database");
+    const { questions, subjects, chapters, topics } = await import("@admission-engine/database");
     const { eq, and } = await import("drizzle-orm");
 
     const conditions = [eq(questions.isActive, true)];
     if (query.subjectId) conditions.push(eq(questions.subjectId, parseInt(query.subjectId, 10)));
     if (query.chapterId) conditions.push(eq(questions.chapterId, parseInt(query.chapterId, 10)));
     if (query.topicId) conditions.push(eq(questions.topicId, parseInt(query.topicId, 10)));
+    if ((query as any).subjectCode) {
+      conditions.push(eq(subjects.code, (query as any).subjectCode.toUpperCase()));
+    }
 
-    const limit = Math.min(parseInt(query.limit || "50", 10), 100);
+    const limit = Math.min(parseInt(query.limit || "100", 10), 1000);
     const offset = parseInt(query.offset || "0", 10);
 
     const rows = await db
-      .select()
+      .select({
+        id: questions.id,
+        tenantId: questions.tenantId,
+        subjectId: questions.subjectId,
+        subjectCode: subjects.code,
+        subjectName: subjects.name,
+        chapterId: questions.chapterId,
+        chapterName: chapters.name,
+        topicId: questions.topicId,
+        topicName: topics.name,
+        questionText: questions.questionText,
+        questionType: questions.questionType,
+        options: questions.options,
+        correctOptionId: questions.correctOptionId,
+        explanation: questions.explanation,
+        marks: questions.marks,
+        negativeMarks: questions.negativeMarks,
+        difficulty: questions.difficulty,
+        universityTags: questions.universityTags,
+        isActive: questions.isActive,
+      })
       .from(questions)
+      .leftJoin(subjects, eq(questions.subjectId, subjects.id))
+      .leftJoin(chapters, eq(questions.chapterId, chapters.id))
+      .leftJoin(topics, eq(questions.topicId, topics.id))
       .where(and(...conditions))
       .limit(limit)
       .offset(offset);

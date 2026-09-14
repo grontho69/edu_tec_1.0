@@ -46,7 +46,7 @@ export default function TopicsPracticePage() {
   // 2. Fetch live questions from PostgreSQL
   const { data: liveQuestions, isLoading: isQuestionsLoading } = useQuery({
     queryKey: ["questions-feed"],
-    queryFn: () => fetchQuestionsFeed({ limit: 100 }),
+    queryFn: () => fetchQuestionsFeed({ limit: 500 }),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -72,6 +72,7 @@ export default function TopicsPracticePage() {
         difficulty: q.difficulty || "MEDIUM",
         universityTag: Array.isArray(q.universityTags) ? q.universityTags.join(", ") : (q.universityTag || "BUET"),
         subjectId: q.subjectId,
+        subjectCode: q.subjectCode || "",
         chapterId: q.chapterId,
         topicId: q.topicId,
         chapter: q.chapterName || "",
@@ -93,7 +94,7 @@ export default function TopicsPracticePage() {
     return trie;
   }, [rawQuestions]);
 
-  // Fast Trie search when query is typed, otherwise standard filter
+  // Fast Trie search when query is typed, otherwise filter by topic and active subject
   const questions = useMemo(() => {
     if (searchQuery.trim()) {
       return trieEngine.searchMultiWord(searchQuery.trim());
@@ -101,8 +102,22 @@ export default function TopicsPracticePage() {
     if (selectedTopicId) {
       return rawQuestions.filter((q: any) => q.topicId === selectedTopicId);
     }
-    return rawQuestions;
-  }, [searchQuery, selectedTopicId, rawQuestions, trieEngine]);
+
+    const filtered = rawQuestions.filter((q: any) => {
+      if (q.subjectCode) {
+        return q.subjectCode.toUpperCase() === activeSubjectCode.toUpperCase();
+      }
+      if (q.subject) {
+        if (activeSubjectCode === "PHY" && q.subject.includes("পদার্থ")) return true;
+        if (activeSubjectCode === "CHEM" && q.subject.includes("রসায়ন")) return true;
+        if (activeSubjectCode === "MATH" && q.subject.includes("গণিত")) return true;
+        if (activeSubjectCode === "BIO" && q.subject.includes("জীব")) return true;
+      }
+      return false;
+    });
+
+    return filtered.length > 0 ? filtered : rawQuestions;
+  }, [searchQuery, selectedTopicId, activeSubjectCode, rawQuestions, trieEngine]);
 
   const handleSelectOption = (q: any, optId: string) => {
     setSelectedAnswers((prev) => ({ ...prev, [q.id]: optId }));
@@ -188,11 +203,24 @@ export default function TopicsPracticePage() {
             const isActive =
               subjectCode === activeSubjectCode ||
               subject.id === activeSubjectCode.toLowerCase();
+            const count =
+              rawQuestions.filter((q: any) => {
+                if (q.subjectCode) return q.subjectCode.toUpperCase() === subjectCode.toUpperCase();
+                if (q.subject) {
+                  if (subjectCode === "PHY" && q.subject.includes("পদার্থ")) return true;
+                  if (subjectCode === "CHEM" && q.subject.includes("রসায়ন")) return true;
+                  if (subjectCode === "MATH" && q.subject.includes("গণিত")) return true;
+                  if (subjectCode === "BIO" && q.subject.includes("জীব")) return true;
+                }
+                return false;
+              }).length || subject.totalQuestions || 100;
+
             return (
               <button
                 key={subject.id}
                 onClick={() => {
                   setActiveSubjectCode(subjectCode);
+                  setSelectedTopicId(null);
                   if (subject.chapters?.[0]) {
                     setExpandedChapter(subject.chapters[0].id);
                   }
@@ -205,15 +233,13 @@ export default function TopicsPracticePage() {
               >
                 {getSubjectIcon(subject.id)}
                 <span>{subject.name}</span>
-                {subject.totalQuestions ? (
-                  <span
-                    className={`rounded-md px-1.5 py-0.2 text-[10px] ${
-                      isActive ? "bg-white/20 text-white" : "bg-zinc-100 text-zinc-500"
-                    }`}
-                  >
-                    {subject.totalQuestions}টি
-                  </span>
-                ) : null}
+                <span
+                  className={`rounded-md px-1.5 py-0.2 text-[10px] ${
+                    isActive ? "bg-white/20 text-white" : "bg-zinc-100 text-zinc-500"
+                  }`}
+                >
+                  {count}টি
+                </span>
               </button>
             );
           })}

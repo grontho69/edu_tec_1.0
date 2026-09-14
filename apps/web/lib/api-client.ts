@@ -500,6 +500,7 @@ export async function fetchTaxonomy() {
 
 export async function fetchQuestionsFeed(params?: {
   subjectId?: number;
+  subjectCode?: string;
   chapterId?: number;
   topicId?: number;
   limit?: number;
@@ -508,6 +509,7 @@ export async function fetchQuestionsFeed(params?: {
   try {
     const searchParams = new URLSearchParams();
     if (params?.subjectId) searchParams.set("subjectId", String(params.subjectId));
+    if (params?.subjectCode) searchParams.set("subjectCode", params.subjectCode);
     if (params?.chapterId) searchParams.set("chapterId", String(params.chapterId));
     if (params?.topicId) searchParams.set("topicId", String(params.topicId));
     if (params?.limit) searchParams.set("limit", String(params.limit));
@@ -520,7 +522,19 @@ export async function fetchQuestionsFeed(params?: {
     const json = await res.json();
     return json.data || [];
   } catch (err) {
-    return FALLBACK_PRACTICE_QUESTIONS;
+    let filtered = FALLBACK_PRACTICE_QUESTIONS;
+    if (params?.subjectCode) {
+      filtered = filtered.filter(
+        (q) => q.subjectCode?.toUpperCase() === params.subjectCode?.toUpperCase()
+      );
+    }
+    if (params?.topicId) {
+      filtered = filtered.filter((q) => q.topicId === params.topicId);
+    }
+    if (params?.limit) {
+      filtered = filtered.slice(0, params.limit);
+    }
+    return filtered;
   }
 }
 
