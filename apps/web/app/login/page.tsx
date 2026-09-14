@@ -175,8 +175,55 @@ function LoginPageInner() {
                 <span>Google অ্যাকাউন্ট দিয়ে প্রবেশ করুন</span>
               </button>
 
+              {/* Quick Persona 1-Click Login */}
+              <div className="rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-3.5 space-y-2">
+                <div className="text-[11px] font-bold text-zinc-600 flex items-center justify-between">
+                  <span>তাৎক্ষণিক ডেমো শিক্ষার্থী হিসেবে প্রবেশ:</span>
+                  <span className="rounded-md bg-blue-100 text-blue-700 px-1.5 py-0.2 text-[9px] font-extrabold">১-ক্লিক</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setLoading(true);
+                      await loginWithEmail("tahmid@admissionengine.com", "তাহমিদ আহমেদ", "ENGINEERING");
+                      setLoading(false);
+                      router.push(redirectTo);
+                    }}
+                    className="flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50/60 hover:bg-blue-100/60 p-2 text-left transition"
+                  >
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600 text-white font-bold text-[11px] shrink-0">
+                      তা
+                    </div>
+                    <div className="truncate">
+                      <div className="text-xs font-bold text-blue-900 truncate">তাহমিদ আহমেদ</div>
+                      <div className="text-[10px] text-blue-700">BUET Target</div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setLoading(true);
+                      await loginWithEmail("farabi@admissionengine.com", "ফারাবি হাসান", "MEDICAL");
+                      setLoading(false);
+                      router.push(redirectTo);
+                    }}
+                    className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/60 hover:bg-emerald-100/60 p-2 text-left transition"
+                  >
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-600 text-white font-bold text-[11px] shrink-0">
+                      ফা
+                    </div>
+                    <div className="truncate">
+                      <div className="text-xs font-bold text-emerald-900 truncate">ফারাবি হাসান</div>
+                      <div className="text-[10px] text-emerald-700">DMC Target</div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
               <div className="relative flex justify-center text-xs">
-                <span className="bg-white px-2 text-zinc-400 text-[11px] relative z-10">অথবা ইমেইল দিয়ে</span>
+                <span className="bg-white px-2 text-zinc-400 text-[11px] relative z-10">অথবা নিজের নাম ও ইমেইল দিয়ে</span>
                 <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-px bg-zinc-200" />
               </div>
 

@@ -21,7 +21,7 @@ import {
   Database,
 } from "lucide-react";
 import { FALLBACK_TOPICS_CATALOG, FALLBACK_PRACTICE_QUESTIONS } from "@/lib/fallback-data";
-import { fetchTaxonomy, fetchQuestionsFeed } from "@/lib/api-client";
+import { fetchTaxonomy, fetchQuestionsFeed, recordQuestionPractice } from "@/lib/api-client";
 import { TrieSearchEngine } from "@/lib/dsa/trie-search";
 import { LatexRenderer } from "@/components/latex-renderer";
 import { useAuthGuard } from "@/lib/with-auth";
@@ -104,9 +104,14 @@ export default function TopicsPracticePage() {
     return rawQuestions;
   }, [searchQuery, selectedTopicId, rawQuestions, trieEngine]);
 
-  const handleSelectOption = (qId: string, optId: string) => {
-    setSelectedAnswers((prev) => ({ ...prev, [qId]: optId }));
-    setShowExplanations((prev) => ({ ...prev, [qId]: true }));
+  const handleSelectOption = (q: any, optId: string) => {
+    setSelectedAnswers((prev) => ({ ...prev, [q.id]: optId }));
+    setShowExplanations((prev) => ({ ...prev, [q.id]: true }));
+    try {
+      recordQuestionPractice(q, optId);
+    } catch (e) {
+      console.warn("Could not record practice answer:", e);
+    }
   };
 
   const getSubjectIcon = (id: string) => {
@@ -379,7 +384,7 @@ export default function TopicsPracticePage() {
                         return (
                           <button
                             key={opt.id}
-                            onClick={() => handleSelectOption(q.id, opt.id)}
+                            onClick={() => handleSelectOption(q, opt.id)}
                             className={`w-full text-left rounded-xl border p-3.5 text-xs sm:text-sm transition flex items-center justify-between min-h-[46px] ${style}`}
                           >
                             <div className="flex items-center space-x-3">

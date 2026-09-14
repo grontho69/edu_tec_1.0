@@ -4,6 +4,11 @@ import {
   FALLBACK_PRACTICE_QUESTIONS,
   FALLBACK_TOPICS_CATALOG,
 } from "./fallback-data";
+import {
+  getStudentData,
+  recordQuestionAnswerInStore,
+  recordExamSubmissionInStore,
+} from "./user-store";
 
 const API_BASE_URL =
   process.env["NEXT_PUBLIC_API_URL"] ||
@@ -12,6 +17,16 @@ const API_BASE_URL =
   window.location.hostname !== "127.0.0.1"
     ? "/api/backend"
     : "http://localhost:3000/api/v1");
+
+function getCurrentAuthUser() {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem("auth_user");
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
 
 function getAuthHeaders(): HeadersInit {
   const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
@@ -32,11 +47,36 @@ export async function fetchDashboardAnalytics() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
   } catch (err) {
-    // Graceful offline fallback when backend is not yet deployed
+    // Dynamic user-specific offline fallback
+    const authUser = getCurrentAuthUser();
+    const studentData = getStudentData(authUser?.id, authUser?.fullName);
     return {
       success: true,
       isOfflineFallback: true,
-      data: FALLBACK_DASHBOARD_ANALYTICS,
+      data: {
+        userId: studentData.profile.id,
+        fullName: studentData.profile.fullName,
+        collegeName: studentData.profile.collegeName,
+        targetUniversity: studentData.profile.targetUniversity,
+        targetUnit: studentData.profile.targetUnit,
+        targetCountdownDays: studentData.profile.targetCountdownDays,
+        avatarInitial: studentData.profile.avatarInitial,
+        avatarColor: studentData.profile.avatarColor,
+        totalExamsTaken: studentData.analytics.totalExamsTaken,
+        totalQuestionsAttempted: studentData.analytics.totalQuestionsAttempted,
+        totalQuestionsCorrect: studentData.analytics.totalQuestionsCorrect,
+        totalQuestionsWrong: studentData.analytics.totalQuestionsWrong,
+        overallAccuracy: studentData.analytics.overallAccuracy,
+        mistakeRate: studentData.analytics.mistakeRate,
+        totalStudyTimeSeconds: studentData.analytics.totalStudyTimeSeconds,
+        streakDays: studentData.analytics.streakDays,
+        lastActiveAt: studentData.analytics.lastActiveAt,
+        syllabusCoveragePercentage: studentData.analytics.syllabusCoveragePercentage,
+        weakTopicsCount: studentData.weakTopics.length,
+        weakTopics: studentData.weakTopics,
+        recentExams: studentData.recentExams,
+        topicBreakdown: FALLBACK_DASHBOARD_ANALYTICS.topicBreakdown,
+      },
     };
   }
 }
@@ -104,22 +144,20 @@ export async function fetchMistakeBook(isMastered?: boolean) {
     if (!res.ok) throw new Error("HTTP error");
     return await res.json();
   } catch (err) {
-    // Sample mistakes for demonstration
-    const sampleMistakes = FALLBACK_PRACTICE_QUESTIONS.slice(0, 3).map((q, idx) => ({
-      mistakeId: `mstk-${idx + 1}`,
-      questionId: q.id,
-      mistakeCount: 2,
-      consecutiveCorrectCount: idx === 0 ? 1 : 0,
-      isMastered: idx === 0,
-      lastAttemptedAt: new Date().toISOString(),
-      question: q,
-    }));
+    // Return user-specific mistakes from local store
+    const authUser = getCurrentAuthUser();
+    const studentData = getStudentData(authUser?.id, authUser?.fullName);
+    let filteredMistakes = studentData.mistakes;
+    if (isMastered !== undefined) {
+      filteredMistakes = filteredMistakes.filter((m) => m.isMastered === isMastered);
+    }
 
     return {
       success: true,
       isOfflineFallback: true,
-      data: sampleMistakes,
-      pagination: { total: sampleMistakes.length, limit: 20, offset: 0 },
+      studentName: studentData.profile.fullName,
+      data: filteredMistakes,
+      pagination: { total: filteredMistakes.length, limit: 20, offset: 0 },
     };
   }
 }
@@ -132,13 +170,30 @@ export async function generateRetest(limit: number = 20) {
     if (!res.ok) throw new Error("HTTP error");
     return await res.json();
   } catch (err) {
+    const authUser = getCurrentAuthUser();
+    const studentData = getStudentData(authUser?.id, authUser?.fullName);
+    const unmastered = studentData.mistakes
+      .filter((m) => !m.isMastered)
+      .map((m) => m.question);
+
+    const questions =
+      unmastered.length > 0
+        ? unmastered.slice(0, limit)
+        : FALLBACK_PRACTICE_QUESTIONS.slice(0, limit);
+
     return {
       success: true,
       isOfflineFallback: true,
-      count: FALLBACK_PRACTICE_QUESTIONS.length,
-      questions: FALLBACK_PRACTICE_QUESTIONS,
+      count: questions.length,
+      questions,
     };
   }
+}
+
+export function recordQuestionPractice(question: any, selectedOptId: string) {
+  const authUser = getCurrentAuthUser();
+  if (!authUser) return;
+  return recordQuestionAnswerInStore(authUser.id, question, selectedOptId, authUser.fullName);
 }
 
 export async function evaluateRetest(

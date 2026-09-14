@@ -13,6 +13,11 @@ import {
   Sparkles,
   Loader2,
   BookOpen,
+  HelpCircle,
+  Lightbulb,
+  Check,
+  RotateCcw,
+  User,
 } from "lucide-react";
 import {
   fetchMistakeBook,
@@ -20,10 +25,22 @@ import {
   evaluateRetest,
 } from "@/lib/api-client";
 import { LatexRenderer } from "@/components/latex-renderer";
+import { useAuth } from "@/lib/auth-context";
+import {
+  recordQuestionAnswerInStore,
+  getStudentData,
+  TAHMID_PERSONA,
+  FARABI_PERSONA,
+} from "@/lib/user-store";
 
 export default function MistakeBookPage() {
+  const { user, login } = useAuth();
   const queryClient = useQueryClient();
   const [filterMastered, setFilterMastered] = useState<boolean>(false);
+
+  // Direct In-Card Solving State
+  const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({});
+  const [revealedExplanations, setRevealedExplanations] = useState<Record<string, boolean>>({});
 
   // Retest Quiz Session State
   const [isRetestActive, setIsRetestActive] = useState(false);
@@ -33,7 +50,7 @@ export default function MistakeBookPage() {
 
   // Query Mistake Book
   const { data: mistakesResponse, isLoading } = useQuery({
-    queryKey: ["mistake-book", filterMastered],
+    queryKey: ["mistake-book", filterMastered, user?.id],
     queryFn: () => fetchMistakeBook(filterMastered),
   });
 
@@ -75,6 +92,41 @@ export default function MistakeBookPage() {
   });
 
   const mistakes = mistakesResponse?.data || [];
+  const studentName = user?.fullName || mistakesResponse?.studentName || "শিক্ষার্থী";
+
+  // Handle direct in-card practice
+  const handleAnswerCard = (entry: any, optId: string) => {
+    setSelectedAnswers((prev) => ({ ...prev, [entry.questionId]: optId }));
+    setRevealedExplanations((prev) => ({ ...prev, [entry.questionId]: true }));
+
+    if (user?.id) {
+      recordQuestionAnswerInStore(user.id, entry.question, optId, user.fullName);
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["mistake-book"] });
+        queryClient.invalidateQueries({ queryKey: ["student-analytics"] });
+      }, 50);
+    }
+  };
+
+  const switchToPersona = (persona: typeof TAHMID_PERSONA) => {
+    login(
+      {
+        id: persona.profile.id,
+        fullName: persona.profile.fullName,
+        email: persona.profile.email,
+        role: persona.profile.role,
+        targetUnit: persona.profile.targetUnit,
+      },
+      `token-${persona.profile.id}`
+    );
+    setTimeout(() => {
+      queryClient.invalidateQueries({ queryKey: ["mistake-book"] });
+      queryClient.invalidateQueries({ queryKey: ["student-analytics"] });
+    }, 50);
+  };
+
+  const isTahmid = (user?.fullName || "").includes("তাহমিদ") || (user?.id || "").includes("tahmid");
+  const isFarabi = (user?.fullName || "").includes("ফারাবি") || (user?.id || "").includes("farabi");
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-zinc-900 pb-20">
@@ -84,13 +136,13 @@ export default function MistakeBookPage() {
           <div className="flex items-center space-x-3">
             <Link
               href="/dashboard"
-              className="flex items-center gap-1 text-xs font-semibold text-zinc-600 hover:text-zinc-900"
+              className="flex items-center gap-1.5 text-xs font-bold text-zinc-600 hover:text-blue-600 transition"
             >
               <ArrowLeft className="h-4 w-4" />
               <span>ড্যাশবোর্ড</span>
             </Link>
             <span className="text-zinc-300">|</span>
-            <div className="flex items-center space-x-1.5 font-bold text-zinc-900 text-sm">
+            <div className="flex items-center space-x-1.5 font-extrabold text-zinc-900 text-sm">
               <FileCheck2 className="h-4 w-4 text-rose-600" />
               <span>আমার ভুল খাতা (Mistake Book)</span>
             </div>
@@ -98,131 +150,256 @@ export default function MistakeBookPage() {
 
           <button
             onClick={() => generateRetestMutation.mutate()}
-            disabled={generateRetestMutation.isPending}
-            className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-rose-700 active:scale-98 transition min-h-[42px]"
+            disabled={generateRetestMutation.isPending || mistakes.length === 0}
+            className="inline-flex items-center space-x-1.5 rounded-xl bg-rose-600 px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-rose-700 active:scale-98 transition disabled:opacity-50"
           >
             {generateRetestMutation.isPending ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <PlayCircle className="h-4 w-4" />
             )}
-            <span>রিভিশন রিটেস্ট শুরু করো (১-ক্লিক)</span>
+            <span>রিভিশন টেস্ট দাও</span>
           </button>
         </div>
       </header>
 
       <main className="mx-auto max-w-5xl px-4 pt-6 sm:px-6">
-        {/* Banner with Two-Strike rule explanation */}
-        <div className="rounded-2xl border border-rose-200 bg-rose-50/70 p-4 sm:p-5 mb-6">
-          <div className="flex items-start space-x-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rose-600 text-white font-bold">
-              2x
-            </div>
+        {/* User Switcher Bar */}
+        <div className="mb-6 rounded-2xl bg-white border border-zinc-200/80 p-3 shadow-xs flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center space-x-2 text-xs font-bold text-zinc-700">
+            <User className="h-4 w-4 text-rose-600" />
+            <span>ভুল খাতা ব্যবহারকারী:</span>
+            <span className="text-rose-700 bg-rose-50 px-2 py-0.5 rounded-md font-bold border border-rose-200">
+              {studentName}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => switchToPersona(TAHMID_PERSONA)}
+              className={`rounded-xl px-2.5 py-1 text-xs font-bold transition ${
+                isTahmid
+                  ? "bg-blue-600 text-white shadow-2xs"
+                  : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+              }`}
+            >
+              তাহমিদ (Physics/Math)
+            </button>
+            <button
+              onClick={() => switchToPersona(FARABI_PERSONA)}
+              className={`rounded-xl px-2.5 py-1 text-xs font-bold transition ${
+                isFarabi
+                  ? "bg-emerald-600 text-white shadow-2xs"
+                  : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+              }`}
+            >
+              ফারাবি (Bio/Chem)
+            </button>
+          </div>
+        </div>
+
+        {/* Dynamic Header Overview */}
+        <div className="mb-6 rounded-3xl bg-white border border-zinc-200 p-6 shadow-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h2 className="text-sm font-bold text-rose-900">
-                টু-স্ট্রাইক মাস্টারি নিয়ম (Two-Strike Mastery Rule)
-              </h2>
-              <p className="mt-0.5 text-xs text-rose-800 leading-relaxed">
-                ভুল খাতার কোনো প্রশ্ন আয়ত্তে আনার জন্য রিটেস্টে টানা ২ বার সঠিকভাবে উত্তর দিতে হবে। যেকোনো ১ বার ভুল হলে টানা সঠিকের সংখ্যা পুনরায় ০ তে রিসেট হবে।
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-3 py-1 text-[11px] font-bold text-rose-700 border border-rose-200 mb-2">
+                <Sparkles className="h-3.5 w-3.5" />
+                <span>২-স্ট্রাইক মাস্টারি নিয়ম (Two-Strike Mastery Rule)</span>
+              </div>
+              <h1 className="text-xl sm:text-2xl font-extrabold text-zinc-900 tracking-tight">
+                {studentName} এর পারসোনালাইজড ভুল খাতা
+              </h1>
+              <p className="mt-1 text-xs sm:text-sm text-zinc-600 leading-relaxed max-w-2xl">
+                তোমার পূর্বে ভুল হওয়া প্রশ্নগুলো আলাদাভাবে তালিকাভুক্ত করা হয়েছে। প্রতিটি প্রশ্ন পরপর ২ বার সঠিক উত্তর দিলে তা মাস্টারড হিসেবে গণ্য হবে।
               </p>
             </div>
+
+            {/* Filter Toggle */}
+            <div className="flex items-center rounded-xl bg-zinc-100 p-1 self-start sm:self-center shrink-0">
+              <button
+                onClick={() => setFilterMastered(false)}
+                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                  !filterMastered
+                    ? "bg-white text-zinc-900 shadow-xs"
+                    : "text-zinc-600 hover:text-zinc-900"
+                }`}
+              >
+                ভুল প্রশ্নসমূহ
+              </button>
+              <button
+                onClick={() => setFilterMastered(true)}
+                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                  filterMastered
+                    ? "bg-white text-zinc-900 shadow-xs"
+                    : "text-zinc-600 hover:text-zinc-900"
+                }`}
+              >
+                মাস্টারড খাতা
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Filter tabs */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex space-x-2">
-            <button
-              onClick={() => setFilterMastered(false)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                !filterMastered
-                  ? "bg-zinc-900 text-white"
-                  : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
-              }`}
-            >
-              রিভিশন বাকি ({mistakes.length})
-            </button>
-            <button
-              onClick={() => setFilterMastered(true)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                filterMastered
-                  ? "bg-zinc-900 text-white"
-                  : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
-              }`}
-            >
-              মাস্টার করা সম্পন্ন
-            </button>
+        {/* Loading */}
+        {isLoading && (
+          <div className="flex flex-col items-center justify-center p-12 text-zinc-500">
+            <Loader2 className="h-8 w-8 animate-spin text-rose-600 mb-2" />
+            <span className="text-xs font-medium">ভুলের খাতা লোড হচ্ছে...</span>
           </div>
-          <span className="text-xs text-zinc-500 font-medium">
-            ব্যর্থতার সংখ্যা অনুযায়ী সাজানো
-          </span>
-        </div>
+        )}
 
-        {/* Mistakes List */}
-        {isLoading ? (
-          <div className="flex justify-center py-12">
-            <Loader2 className="h-6 w-6 animate-spin text-rose-600" />
-          </div>
-        ) : mistakes.length === 0 ? (
-          <div className="rounded-2xl border border-zinc-200 bg-white p-12 text-center shadow-xs">
-            <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-500 mb-3" />
-            <h3 className="text-base font-bold text-zinc-900">
+        {/* Empty State */}
+        {!isLoading && mistakes.length === 0 && (
+          <div className="rounded-3xl border border-zinc-200 bg-white p-12 text-center shadow-xs">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 mb-4">
+              <CheckCircle2 className="h-7 w-7" />
+            </div>
+            <h3 className="text-lg font-bold text-zinc-900">
               {filterMastered
                 ? "এখনও কোনো প্রশ্ন মাস্টার করা হয়নি।"
-                : "সব ভুল প্রশ্ন মাস্টার করা শেষ! নতুন মডেল টেস্টে অংশ নাও।"}
+                : "দারুণ! তোমার কোনো অমীমাংসিত ভুল প্রশ্ন নেই।"}
             </h3>
-            <p className="mt-1 text-xs text-zinc-500">
-              নিয়মিত এক্সামে অংশ নিয়ে ভুলগুলো ট্র্যাক করো।
+            <p className="mx-auto mt-1 max-w-sm text-xs text-zinc-500 leading-relaxed">
+              মডেল টেস্ট অথবা টপিক প্র্যাকটিসে অংশ নাও। ভুল হওয়া যেকোনো প্রশ্ন সরাসরি এখানে চলে আসবে।
             </p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {mistakes.map((entry: any) => (
-              <div
-                key={entry.id}
-                className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-xs transition hover:shadow-sm"
+            <div className="mt-6">
+              <Link
+                href="/topics"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-blue-700 transition"
               >
-                <div className="flex items-center justify-between border-b border-zinc-100 pb-2.5 mb-3 text-xs">
-                  <div className="flex items-center space-x-2">
-                    <span className="rounded-md bg-rose-50 px-2 py-0.5 font-bold text-rose-700 border border-rose-200">
-                      ভুল হয়েছে: {entry.mistakeCount} বার
-                    </span>
-                    <span className="rounded-md bg-zinc-100 px-2 py-0.5 font-medium text-zinc-700">
-                      টানা সঠিক: {entry.consecutiveCorrectCount} / ২
-                    </span>
+                <span>টপিক প্র্যাকটিস শুরু করো</span>
+                <BookOpen className="h-4 w-4" />
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* Mistakes List */}
+        {!isLoading && mistakes.length > 0 && (
+          <div className="space-y-4">
+            {mistakes.map((entry: any) => {
+              const q = entry.question;
+              const qId = entry.questionId || q?.id;
+              const userAns = selectedAnswers[qId];
+              const isAnswered = !!userAns;
+              const isCorrectAnswer = userAns === q?.correctOptionId;
+              const showExp = revealedExplanations[qId] || isAnswered;
+
+              return (
+                <div
+                  key={entry.mistakeId || qId}
+                  className="rounded-3xl border border-zinc-200 bg-white p-5 sm:p-6 shadow-xs transition hover:shadow-sm"
+                >
+                  {/* Top Meta Bar */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-100 pb-3 mb-4 text-xs">
+                    <div className="flex items-center space-x-2">
+                      <span className="rounded-md bg-rose-50 px-2 py-0.5 font-bold text-rose-700 border border-rose-200">
+                        ভুল হয়েছে: {entry.mistakeCount} বার
+                      </span>
+                      <span className="rounded-md bg-zinc-100 px-2 py-0.5 font-semibold text-zinc-700">
+                        টানা সঠিক: {entry.consecutiveCorrectCount} / ২
+                      </span>
+                      <span className="text-zinc-400">•</span>
+                      <span className="font-semibold text-zinc-600">{q?.chapter}</span>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <span className="rounded-md bg-purple-50 text-purple-700 px-2 py-0.5 text-[11px] font-bold border border-purple-200">
+                        {q?.universityTag}
+                      </span>
+                      {entry.isMastered ? (
+                        <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700 border border-emerald-200">
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          মাস্টারড
+                        </span>
+                      ) : (
+                        <span className="rounded-md bg-amber-50 text-amber-700 px-2 py-0.5 text-[11px] font-bold border border-amber-200">
+                          রিভিশন প্রয়োজন
+                        </span>
+                      )}
+                    </div>
                   </div>
 
-                  {entry.isMastered ? (
-                    <span className="inline-flex items-center gap-1 font-bold text-emerald-600 text-xs">
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                      মাস্টারড
-                    </span>
-                  ) : (
-                    <span className="text-zinc-400 font-medium">
-                      মাস্টারি অপেক্ষমান
-                    </span>
+                  {/* Question Text with KaTeX */}
+                  <div className="text-sm sm:text-base font-medium leading-relaxed text-zinc-900 mb-5">
+                    <LatexRenderer content={q?.questionText || ""} />
+                  </div>
+
+                  {/* Interactive Option Buttons (Solve Mistake Directly) */}
+                  <div className="space-y-2.5 mb-4">
+                    {q?.options?.map((opt: any) => {
+                      const isSelected = userAns === opt.id;
+                      const isThisCorrect = opt.id === q?.correctOptionId;
+
+                      let btnStyle =
+                        "border-zinc-200 bg-white text-zinc-800 hover:border-zinc-300 hover:bg-zinc-50";
+
+                      if (isAnswered) {
+                        if (isThisCorrect) {
+                          btnStyle =
+                            "border-emerald-500 bg-emerald-50 text-emerald-900 font-semibold";
+                        } else if (isSelected && !isThisCorrect) {
+                          btnStyle =
+                            "border-rose-500 bg-rose-50 text-rose-900 font-semibold";
+                        }
+                      }
+
+                      return (
+                        <button
+                          key={opt.id}
+                          disabled={isAnswered}
+                          onClick={() => handleAnswerCard(entry, opt.id)}
+                          className={`w-full text-left rounded-2xl border p-3.5 text-xs sm:text-sm transition flex items-center justify-between min-h-[46px] ${btnStyle}`}
+                        >
+                          <div className="flex items-center space-x-3">
+                            <span
+                              className={`flex h-6 w-6 items-center justify-center rounded-lg text-xs font-bold ${
+                                isAnswered && isThisCorrect
+                                  ? "bg-emerald-600 text-white"
+                                  : isAnswered && isSelected
+                                  ? "bg-rose-600 text-white"
+                                  : "bg-zinc-100 text-zinc-600"
+                              }`}
+                            >
+                              {opt.id}
+                            </span>
+                            <div className="overflow-x-auto">
+                              <LatexRenderer content={opt.text} />
+                            </div>
+                          </div>
+
+                          {isAnswered && isThisCorrect && (
+                            <Check className="h-4 w-4 text-emerald-600 shrink-0" />
+                          )}
+                          {isAnswered && isSelected && !isThisCorrect && (
+                            <XCircle className="h-4 w-4 text-rose-600 shrink-0" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Notes & Explanation Toggle */}
+                  {entry.notes && (
+                    <div className="rounded-xl bg-amber-50/70 border border-amber-200 p-3 text-xs text-amber-900 mb-3">
+                      <strong>📝 তোমার নোট:</strong> {entry.notes}
+                    </div>
+                  )}
+
+                  {showExp && q?.explanation && (
+                    <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-4 text-xs text-blue-950 mt-3 space-y-1.5">
+                      <div className="flex items-center space-x-1.5 font-bold text-blue-900">
+                        <Lightbulb className="h-4 w-4 text-amber-500" />
+                        <span>বৈজ্ঞানিক সমাধান ও ব্যাখ্যা:</span>
+                      </div>
+                      <div className="leading-relaxed">
+                        <LatexRenderer content={q.explanation} />
+                      </div>
+                    </div>
                   )}
                 </div>
-
-                {/* Question text */}
-                <div className="text-sm sm:text-base font-medium text-zinc-900 leading-relaxed mb-3">
-                  <LatexRenderer content={entry.question?.questionText || ""} />
-                </div>
-
-                {/* Options list */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                  {entry.question?.options?.map((opt: any) => (
-                    <div
-                      key={opt.id}
-                      className="rounded-lg border border-zinc-100 bg-zinc-50/50 p-2.5 flex items-center space-x-2 text-zinc-700"
-                    >
-                      <span className="font-bold text-zinc-500">{opt.id}.</span>
-                      <LatexRenderer content={opt.text} />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </main>
@@ -230,11 +407,11 @@ export default function MistakeBookPage() {
       {/* Retest Quiz Modal */}
       {isRetestActive && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm overflow-y-auto">
-          <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl my-8 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b pb-3 mb-4">
+          <div className="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl my-8 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-zinc-100 pb-3 mb-4">
               <div className="flex items-center space-x-2">
                 <Sparkles className="h-5 w-5 text-rose-600" />
-                <h3 className="font-bold text-base text-zinc-900">
+                <h3 className="font-extrabold text-base text-zinc-900">
                   রিভিশন রিটেস্ট সেশন ({retestQuestions.length} টি প্রশ্ন)
                 </h3>
               </div>
@@ -249,7 +426,7 @@ export default function MistakeBookPage() {
             {/* If Results received */}
             {retestResults ? (
               <div className="space-y-4">
-                <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-4 text-center">
+                <div className="rounded-2xl bg-emerald-50 border border-emerald-200 p-4 text-center">
                   <h4 className="text-base font-bold text-emerald-900">
                     রিটেস্ট ফলাফল মূল্যায়িত হয়েছে!
                   </h4>
@@ -264,7 +441,7 @@ export default function MistakeBookPage() {
                   {retestResults.results?.map((res: any, idx: number) => (
                     <div
                       key={res.questionId}
-                      className={`rounded-xl border p-3.5 text-xs ${
+                      className={`rounded-2xl border p-3.5 text-xs ${
                         res.isCorrect
                           ? "border-emerald-200 bg-emerald-50/50"
                           : "border-rose-200 bg-rose-50/50"
@@ -279,58 +456,58 @@ export default function MistakeBookPage() {
                           {res.isMastered && "🎉 (মাস্টারড)"}
                         </span>
                       </div>
-                      <div className="text-zinc-600">
-                        তোমার উত্তর: <span className="font-bold">{res.selectedOption}</span> | সঠিক উত্তর:{" "}
-                        <span className="font-bold">{res.correctOptionId}</span>
-                      </div>
-                      {res.explanation && (
-                        <div className="mt-2 text-zinc-700 border-t border-zinc-200/60 pt-1.5">
-                          <strong>ব্যাখ্যা:</strong> <LatexRenderer content={res.explanation} />
-                        </div>
-                      )}
+                      <p className="text-[11px] text-zinc-600">
+                        {res.isCorrect
+                          ? "দারুণ! তুমি সঠিক উত্তর দিয়েছ।"
+                          : "পুনরায় চেষ্টা করো। সঠিক ব্যাখ্যা লক্ষ্য করো।"}
+                      </p>
                     </div>
                   ))}
                 </div>
 
                 <button
                   onClick={() => setIsRetestActive(false)}
-                  className="w-full rounded-xl bg-zinc-900 py-3 text-xs font-bold text-white shadow-sm hover:bg-zinc-800 min-h-[44px]"
+                  className="w-full rounded-2xl bg-zinc-900 py-3 text-xs font-bold text-white hover:bg-zinc-800 transition"
                 >
-                  সমাপ্ত করো
+                  ফলাফল বন্ধ করো
                 </button>
               </div>
             ) : (
-              /* Retest Question Answering */
+              /* Quiz Questions */
               <div className="space-y-6">
-                {retestQuestions.map((q, idx) => (
-                  <div key={q.id} className="rounded-xl border border-zinc-200 p-4">
-                    <div className="text-xs font-bold text-zinc-500 mb-2">
-                      প্রশ্ন {idx + 1} / {retestQuestions.length} (পূর্বের ভুল: {q.mistakeCount} বার)
+                {retestQuestions.map((q: any, idx: number) => (
+                  <div key={q.id} className="rounded-2xl border border-zinc-200 p-4">
+                    <div className="flex items-center space-x-2 text-xs font-bold text-zinc-500 mb-2">
+                      <span className="rounded-md bg-rose-50 text-rose-700 px-2 py-0.5 border border-rose-200">
+                        প্রশ্ন {idx + 1}
+                      </span>
+                      <span>{q.chapter}</span>
                     </div>
-                    <div className="text-sm font-medium text-zinc-900 mb-3">
+
+                    <div className="text-sm font-medium text-zinc-900 mb-4">
                       <LatexRenderer content={q.questionText} />
                     </div>
 
-                    <div className="space-y-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                       {q.options?.map((opt: any) => {
                         const isSelected = retestAnswers[q.id] === opt.id;
                         return (
                           <button
                             key={opt.id}
                             onClick={() =>
-                              setRetestAnswers((prev) => ({ ...prev, [q.id]: opt.id }))
+                              setRetestAnswers((prev) => ({
+                                ...prev,
+                                [q.id]: opt.id,
+                              }))
                             }
-                            className={`w-full text-left rounded-lg border p-2.5 text-xs font-medium transition flex items-center justify-between ${
+                            className={`flex items-center space-x-2 rounded-xl border p-3 text-left transition ${
                               isSelected
-                                ? "border-rose-600 bg-rose-50 text-rose-900 ring-1 ring-rose-500"
-                                : "border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-800"
+                                ? "border-rose-500 bg-rose-50 text-rose-900 font-bold"
+                                : "border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-700"
                             }`}
                           >
-                            <span className="flex items-center space-x-2">
-                              <span className="font-bold">{opt.id}.</span>
-                              <LatexRenderer content={opt.text} />
-                            </span>
-                            {isSelected && <CheckCircle2 className="h-4 w-4 text-rose-600 shrink-0" />}
+                            <span className="font-bold">{opt.id}.</span>
+                            <LatexRenderer content={opt.text} />
                           </button>
                         );
                       })}
@@ -344,14 +521,13 @@ export default function MistakeBookPage() {
                     evaluateRetestMutation.isPending ||
                     Object.keys(retestAnswers).length === 0
                   }
-                  className="w-full rounded-xl bg-rose-600 py-3.5 text-xs font-bold text-white shadow-sm hover:bg-rose-700 disabled:opacity-50 min-h-[48px] flex items-center justify-center gap-2"
+                  className="w-full rounded-2xl bg-rose-600 py-3 text-xs font-bold text-white shadow-sm hover:bg-rose-700 active:scale-98 transition disabled:opacity-50"
                 >
                   {evaluateRetestMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <Loader2 className="h-4 w-4 animate-spin mx-auto" />
                   ) : (
-                    <CheckCircle2 className="h-4 w-4" />
+                    "উত্তর সাবমিট করো ও মাস্টারি যাচাই করো"
                   )}
-                  <span>রিটেস্ট জমা দাও এবং মূল্যায়ন দেখো</span>
                 </button>
               </div>
             )}
