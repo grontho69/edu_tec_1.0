@@ -17,6 +17,7 @@ import {
   RefreshCw,
   LogOut,
   User,
+  loader2
 } from "lucide-react";
 import { fetchDashboardAnalytics } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
