@@ -2,6 +2,8 @@ import { drizzle as drizzleNodePg, type NodePgDatabase } from "drizzle-orm/node-
 import { drizzle as drizzlePglite, type PgliteDatabase } from "drizzle-orm/pglite";
 import { PGlite } from "@electric-sql/pglite";
 import pg from "pg";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import * as schema from "./schema/index";
 
 export type NodePgDb = NodePgDatabase<typeof schema>;
@@ -42,7 +44,20 @@ export function createDatabaseContext(options: CreateClientOptions = {}): Databa
   const connectionString = options.connectionString || process.env["DATABASE_URL"];
 
   if (options.usePglite || (!connectionString && !process.env["DATABASE_URL"])) {
-    const pglite = new PGlite(options.pgliteDataDir);
+    let dataDir = options.pgliteDataDir;
+    if (!dataDir && process.env["NODE_ENV"] !== "test") {
+      try {
+        const rootDir = path.resolve(
+          path.dirname(fileURLToPath(import.meta.url)),
+          "../../../.pglite_data"
+        );
+        dataDir = process.env["PGLITE_DATA_DIR"] || rootDir;
+      } catch {
+        dataDir =
+          process.env["PGLITE_DATA_DIR"] || path.resolve(process.cwd(), ".pglite_data");
+      }
+    }
+    const pglite = new PGlite(dataDir);
     const db = drizzlePglite(pglite, { schema });
     const ctx: DatabaseContext = {
       db,

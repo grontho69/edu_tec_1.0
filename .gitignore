@@ -5,6 +5,7 @@ dist/
 node_modules/
 dist/
 .pnpm-store/
+.pglite_data/
 .env
 .env.*
 *.log
