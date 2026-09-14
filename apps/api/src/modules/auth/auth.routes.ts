@@ -27,9 +27,13 @@ export async function authRoutes(app: FastifyInstance, opts: AuthRoutesOptions) 
 
   // 2. Google OAuth 2.0 — Real Implementation
   app.get("/auth/google", async (req, rep) => {
-    const clientId = process.env["GOOGLE_CLIENT_ID"] || "";
+    const clientId = process.env["GOOGLE_CLIENT_ID"];
     const redirectUri = process.env["GOOGLE_REDIRECT_URI"] || "https://admission-engine-1-0.onrender.com/api/v1/auth/google/callback";
     const redirect = (req.query as any)?.redirect || "/dashboard";
+
+    if (!clientId) {
+      return rep.code(503).send({ error: "Google OAuth is not configured" });
+    }
 
     const params = new URLSearchParams({
       client_id: clientId,
@@ -53,9 +57,13 @@ export async function authRoutes(app: FastifyInstance, opts: AuthRoutesOptions) 
     }
 
     try {
-      const clientId = process.env["GOOGLE_CLIENT_ID"] || "";
-      const clientSecret = process.env["GOOGLE_CLIENT_SECRET"] || "";
+      const clientId = process.env["GOOGLE_CLIENT_ID"];
+      const clientSecret = process.env["GOOGLE_CLIENT_SECRET"];
       const redirectUri = process.env["GOOGLE_REDIRECT_URI"] || "https://admission-engine-1-0.onrender.com/api/v1/auth/google/callback";
+
+      if (!clientId || !clientSecret) {
+        throw new Error("Google OAuth is not configured");
+      }
 
       // Exchange code for tokens
       const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
