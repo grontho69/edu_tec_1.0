@@ -46,7 +46,7 @@ export default function TopicsPracticePage() {
   // 2. Fetch live questions from PostgreSQL
   const { data: liveQuestions, isLoading: isQuestionsLoading } = useQuery({
     queryKey: ["questions-feed"],
-    queryFn: () => fetchQuestionsFeed({ limit: 500 }),
+    queryFn: () => fetchQuestionsFeed({ limit: 1000 }),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -340,9 +340,14 @@ export default function TopicsPracticePage() {
             </div>
 
             {/* Questions List */}
-            {questions.length === 0 ? (
+            {isQuestionsLoading ? (
+              <div className="rounded-2xl border border-zinc-200 bg-white p-12 text-center text-zinc-500 flex flex-col items-center justify-center gap-3">
+                <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+                <span className="text-xs">ডাটাবেজ থেকে প্রশ্ন ভাণ্ডার লোড হচ্ছে...</span>
+              </div>
+            ) : questions.length === 0 ? (
               <div className="rounded-2xl border border-zinc-200 bg-white p-12 text-center text-zinc-500">
-                কোনো প্রশ্ন পাওয়া যায়নি। অন্য টপিক বা কিওয়ার্ড দিয়ে অনুসন্ধান করো।
+                কোনো প্রশ্ন পাওয়া যায়নি। ডাটাবেজে নতুন প্রশ্ন যোগ করতে অ্যাডমিন প্যানেল ব্যবহার করুন।
               </div>
             ) : (
               questions.map((q, idx) => {

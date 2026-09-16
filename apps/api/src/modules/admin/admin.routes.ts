@@ -66,7 +66,39 @@ export async function adminRoutes(app: FastifyInstance, opts: AdminRoutesOptions
 
     // Live Questions Bank & Direct Question Creation
     adminScope.get("/admin/questions", async (_request, reply) => {
-      const allQuestions = await db.select().from(questions).limit(100);
+      const { subjects, chapters, topics } = await import("@admission-engine/database");
+      const { desc, eq } = await import("drizzle-orm");
+
+      const allQuestions = await db
+        .select({
+          id: questions.id,
+          tenantId: questions.tenantId,
+          subjectId: questions.subjectId,
+          subjectCode: subjects.code,
+          subjectName: subjects.name,
+          chapterId: questions.chapterId,
+          chapterName: chapters.name,
+          topicId: questions.topicId,
+          topicName: topics.name,
+          questionText: questions.questionText,
+          questionType: questions.questionType,
+          options: questions.options,
+          correctOptionId: questions.correctOptionId,
+          explanation: questions.explanation,
+          marks: questions.marks,
+          negativeMarks: questions.negativeMarks,
+          difficulty: questions.difficulty,
+          universityTags: questions.universityTags,
+          isActive: questions.isActive,
+          createdAt: questions.createdAt,
+        })
+        .from(questions)
+        .leftJoin(subjects, eq(questions.subjectId, subjects.id))
+        .leftJoin(chapters, eq(questions.chapterId, chapters.id))
+        .leftJoin(topics, eq(questions.topicId, topics.id))
+        .orderBy(desc(questions.createdAt))
+        .limit(1000);
+
       return reply.status(200).send({
         success: true,
         count: allQuestions.length,

@@ -1,9 +1,7 @@
-import { SEED_TOPICS_CATALOG, SEED_ALL_400_QUESTIONS } from "./seed-questions-catalog";
-
 /**
- * Zero-Lag Fallback & Offline Dataset for Admission Exam Engine.
- * Provides all 400 authentic questions across Physics, Chemistry, Math & Biology
- * and full syllabus taxonomy.
+ * Taxonomy & Exam Fallback Metadata.
+ * All 400 questions are stored in the PostgreSQL/PGlite database and served dynamically via the API.
+ * No questions are hardcoded locally on the client.
  */
 
 export interface FallbackQuestion {
@@ -25,10 +23,42 @@ export interface FallbackQuestion {
   difficulty: "EASY" | "MEDIUM" | "HARD";
 }
 
-export const FALLBACK_TOPICS_CATALOG = SEED_TOPICS_CATALOG;
+export const FALLBACK_TOPICS_CATALOG = [
+  {
+    id: "phy",
+    code: "PHY",
+    name: "পদার্থবিজ্ঞান (Physics)",
+    icon: "Atom",
+    totalQuestions: 100,
+    chapters: [],
+  },
+  {
+    id: "chem",
+    code: "CHEM",
+    name: "রসায়ন (Chemistry)",
+    icon: "FlaskConical",
+    totalQuestions: 100,
+    chapters: [],
+  },
+  {
+    id: "math",
+    code: "MATH",
+    name: "উচ্চতর গণিত (Higher Mathematics)",
+    icon: "Binary",
+    totalQuestions: 100,
+    chapters: [],
+  },
+  {
+    id: "bio",
+    code: "BIO",
+    name: "জীববিজ্ঞান (Biology)",
+    icon: "Dna",
+    totalQuestions: 100,
+    chapters: [],
+  },
+];
 
-export const FALLBACK_PRACTICE_QUESTIONS: FallbackQuestion[] =
-  SEED_ALL_400_QUESTIONS as FallbackQuestion[];
+export const FALLBACK_PRACTICE_QUESTIONS: FallbackQuestion[] = [];
 
 export const FALLBACK_EXAM_PAPER = {
   examId: "8f8b89e2-1111-2222-3333-444455556666",
