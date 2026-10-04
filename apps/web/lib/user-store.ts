@@ -393,7 +393,7 @@ export const FARABI_PERSONA: CompleteStudentData = {
   recentExams: [
     {
       id: "sub-f-01",
-      examId: "med-bio-chem-03",
+      examId: "8f8b89e2-3333-4444-5555-666677778888",
       examTitle: "মেডিকেল জীববিজ্ঞান ও রসায়ন বুস্টার টেস্ট",
       university: "MBBS & BDS",
       totalScore: "39.50",

@@ -139,13 +139,13 @@ export const FALLBACK_MODEL_TESTS = [
     tag: "LIVE NOW",
     badgeColor: "bg-red-50 text-red-700 border-red-200",
     questionsCount: 50,
-    durationMinutes: 45,
+    durationMinutes: 60,
     marks: "+1.00 / -0.25",
     participants: 4120,
     status: "LIVE",
   },
   {
-    id: "du-special-02",
+    id: "8f8b89e2-2222-3333-4444-555566667777",
     title: "ঢাবি 'ক' ইউনিট স্পিড ও নির্ভুলতা টেস্ট",
     university: "ঢাকা বিশ্ববিদ্যালয় (DU)",
     tag: "TODAY 9:00 PM",
@@ -157,7 +157,7 @@ export const FALLBACK_MODEL_TESTS = [
     status: "UPCOMING",
   },
   {
-    id: "med-bio-chem-03",
+    id: "8f8b89e2-3333-4444-5555-666677778888",
     title: "মেডিকেল জীববিজ্ঞান ও রসায়ন বুস্টার টেস্ট",
     university: "MBBS & BDS",
     tag: "UPCOMING",
@@ -169,7 +169,7 @@ export const FALLBACK_MODEL_TESTS = [
     status: "UPCOMING",
   },
   {
-    id: "past-buet-2023",
+    id: "8f8b89e2-4444-5555-6666-777788889999",
     title: "বিগত বছরের প্রশ্ন: বুয়েট ভর্তি পরীক্ষা ২০২৩-২৪",
     university: "BUET",
     tag: "PRACTICE",

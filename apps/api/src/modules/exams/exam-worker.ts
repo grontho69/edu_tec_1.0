@@ -64,11 +64,14 @@ export class ExamWorker {
 
     // Fetch exam duration for tie-breaker divisor
     let durationMinutes = 60;
-    const [examRecord] = await this.db
-      .select({ durationMinutes: exams.durationMinutes })
-      .from(exams)
-      .where(eq(exams.id, examId))
-      .limit(1);
+    const isExamUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(examId);
+    const [examRecord] = isExamUuid
+      ? await this.db
+          .select({ durationMinutes: exams.durationMinutes })
+          .from(exams)
+          .where(eq(exams.id, examId))
+          .limit(1)
+      : [];
 
     if (examRecord) {
       durationMinutes = examRecord.durationMinutes;

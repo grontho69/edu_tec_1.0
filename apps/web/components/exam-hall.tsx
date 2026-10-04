@@ -26,6 +26,7 @@ export function ExamHall({ examId }: ExamHallProps) {
 
   // Exam Data
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [paper, setPaper] = useState<any>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -57,6 +58,9 @@ export function ExamHall({ examId }: ExamHallProps) {
 
     async function loadExam() {
       try {
+        setError(null);
+        setLoading(true);
+
         // First check local offline draft
         const draft = await loadExamDraft(examId);
         if (draft && draft.answers && active) {
@@ -81,8 +85,14 @@ export function ExamHall({ examId }: ExamHallProps) {
         // Duration countdown setup
         const durationSecs = (data.durationMinutes || 60) * 60;
         setTimeRemainingSeconds(durationSecs);
-      } catch (err) {
+      } catch (err: any) {
         console.error("Failed to load exam paper:", err);
+        if (active) {
+          setError(
+            err?.message ||
+              "পরীক্ষার প্রশ্নপত্র লোড করা যায়নি। সার্ভারের সাথে সংযোগ নিশ্চিত করুন।"
+          );
+        }
       } finally {
         if (active) setLoading(false);
       }
@@ -221,6 +231,50 @@ export function ExamHall({ examId }: ExamHallProps) {
   }
 
   const questions = paper?.questions || [];
+
+  if (error || questions.length === 0) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-[#f8fafc] px-4 text-center">
+        <div className="w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-rose-50 text-rose-600 mb-4">
+            <ShieldAlert className="h-6 w-6" />
+          </div>
+          <h2 className="text-base font-bold text-zinc-900 mb-2">পরীক্ষার প্রশ্নপত্র লোড করা যায়নি</h2>
+          <p className="text-xs text-zinc-600 leading-relaxed mb-6">
+            {error || "এই পরীক্ষার জন্য কোনো প্রশ্ন পাওয়া যায়নি।"}
+          </p>
+          <div className="flex flex-col sm:flex-row gap-2.5">
+            <button
+              onClick={() => {
+                setLoading(true);
+                setError(null);
+                fetchExamPaper(examId)
+                  .then((data) => {
+                    setPaper(data);
+                    const durationSecs = (data.durationMinutes || 60) * 60;
+                    setTimeRemainingSeconds(durationSecs);
+                    setError(null);
+                  })
+                  .catch((err: any) => {
+                    setError(err?.message || "লোড ব্যর্থ হয়েছে");
+                  })
+                  .finally(() => setLoading(false));
+              }}
+              className="flex-1 rounded-xl bg-blue-600 py-2.5 px-4 text-xs font-bold text-white shadow-sm hover:bg-blue-700 transition"
+            >
+              আবার চেষ্টা করুন
+            </button>
+            <button
+              onClick={() => router.push("/exams")}
+              className="flex-1 rounded-xl border border-zinc-200 bg-white py-2.5 px-4 text-xs font-bold text-zinc-700 hover:bg-zinc-50 transition"
+            >
+              পরীক্ষার তালিকা
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
   const currentQ = questions[currentQuestionIndex];
   const totalQ = questions.length;
   const answeredCount = Object.keys(answers).length;

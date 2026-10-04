@@ -86,22 +86,25 @@ export async function fetchExamPaper(examId: string) {
     const res = await fetch(`${API_BASE_URL}/exams/${examId}/paper`, {
       headers: getAuthHeaders(),
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) {
+      const errJson = await res.json().catch(() => ({}));
+      throw new Error(errJson?.error || `পরীক্ষার প্রশ্নপত্র লোড করা যায়নি (HTTP ${res.status})`);
+    }
     const json = await res.json();
-    return json.data || json;
-  } catch (err) {
-    // Graceful offline fallback allowing full exam test without backend
-    return {
-      ...FALLBACK_EXAM_PAPER,
-      examId,
-      isOfflineFallback: true,
-    };
+    const paper = json.data || json;
+    if (!paper || !Array.isArray(paper.questions) || paper.questions.length === 0) {
+      throw new Error("এই পরীক্ষার জন্য কোনো প্রশ্ন পাওয়া যায়নি।");
+    }
+    return paper;
+  } catch (err: any) {
+    console.error(`fetchExamPaper failed for ${examId}:`, err);
+    throw err;
   }
 }
 
 export async function submitExam(
   examId: string,
-  answers: Array<{ questionId: string; selectedOptionId: string }>,
+  answers: Array<{ questionId: string; selectedOption?: string; selectedOptionId?: string; timeSpentSeconds?: number }>,
   idempotencyKey?: string
 ) {
   try {
@@ -110,22 +113,30 @@ export async function submitExam(
       headers["x-idempotency-key"] = idempotencyKey;
     }
 
+    // Map answers so both selectedOption and selectedOptionId work with backend schema
+    const formattedAnswers = answers.map((a) => ({
+      questionId: a.questionId,
+      selectedOption: a.selectedOption || a.selectedOptionId || "",
+      timeSpentSeconds: a.timeSpentSeconds || 0,
+    }));
+
     const res = await fetch(`${API_BASE_URL}/exams/${examId}/submit`, {
       method: "POST",
       headers,
       body: JSON.stringify({
-        answers,
+        answers: formattedAnswers,
         clientSubmittedAt: new Date().toISOString(),
       }),
     });
 
     if (!res.ok && res.status !== 202) {
-      throw new Error(`HTTP ${res.status}`);
+      const errJson = await res.json().catch(() => ({}));
+      throw new Error(errJson?.error || `HTTP ${res.status}`);
     }
 
     return await res.json();
   } catch (err) {
-    // Simulated offline acceptance
+    // Simulated offline acceptance on network error
     return {
       status: "QUEUED",
       trackingTicket: idempotencyKey || "offline-ticket-" + Date.now(),

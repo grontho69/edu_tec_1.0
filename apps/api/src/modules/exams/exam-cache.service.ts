@@ -1,8 +1,11 @@
 import type { DatabaseInstance } from "@admission-engine/database";
-import { exams, questions } from "@admission-engine/database";
-import { eq } from "drizzle-orm";
+import { exams, questions, subjects, getModelTestDefinition } from "@admission-engine/database";
+import { and, asc, eq } from "drizzle-orm";
 import type { IRedisClient } from "../auth/redis.service";
 import { defaultRedisClient } from "../auth/redis.service";
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const DEFAULT_EXAM_QUESTION_COUNT = 50;
 
 export interface CachedQuestionItem {
   id: string;
@@ -79,6 +82,10 @@ export class ExamCacheService {
     if (customPaper) {
       paper = customPaper;
     } else {
+      if (!UUID_REGEX.test(examId)) {
+        throw new Error(`Exam with ID ${examId} not found.`);
+      }
+
       // 1. Fetch exam metadata from database
       const [examRecord] = await this.db
         .select()
@@ -90,11 +97,15 @@ export class ExamCacheService {
         throw new Error(`Exam with ID ${examId} not found in database.`);
       }
 
-      // 2. Fetch associated questions
-      const examQuestions = await this.db
-        .select()
-        .from(questions)
-        .limit(10); // default active pool
+      // 2. Assemble questions according to the model test definition (subject mix + count)
+      const definition = getModelTestDefinition(examId);
+      const questionCount = definition?.questionCount ?? DEFAULT_EXAM_QUESTION_COUNT;
+      const subjectCodes = definition?.subjectCodes ?? [];
+      const examQuestions = await this.selectExamQuestions(subjectCodes, questionCount);
+
+      if (examQuestions.length === 0) {
+        throw new Error(`No questions available for exam ${examId}. Seed the question bank first.`);
+      }
 
       paper = {
         examId: examRecord.id,
@@ -140,6 +151,51 @@ export class ExamCacheService {
     await this.redis.set(`exam:paper:${examId}`, JSON.stringify(paper), "EX", 86400);
 
     return paper;
+  }
+
+  /**
+   * Picks active questions for an exam, split evenly across the requested subjects
+   * (any subject when `subjectCodes` is empty). Ordering is stable so the same exam
+   * yields the same paper across server restarts.
+   */
+  private async selectExamQuestions(subjectCodes: string[], questionCount: number) {
+    const baseQuery = () =>
+      this.db
+        .select({
+          id: questions.id,
+          topicId: questions.topicId,
+          questionText: questions.questionText,
+          questionType: questions.questionType,
+          options: questions.options,
+          marks: questions.marks,
+          negativeMarks: questions.negativeMarks,
+          difficulty: questions.difficulty,
+          correctOptionId: questions.correctOptionId,
+          explanation: questions.explanation,
+        })
+        .from(questions)
+        .innerJoin(subjects, eq(questions.subjectId, subjects.id));
+
+    if (subjectCodes.length === 0) {
+      return baseQuery()
+        .where(eq(questions.isActive, true))
+        .orderBy(asc(questions.createdAt), asc(questions.id))
+        .limit(questionCount);
+    }
+
+    const perSubject = Math.floor(questionCount / subjectCodes.length);
+    const remainder = questionCount % subjectCodes.length;
+    const result = [];
+    for (let i = 0; i < subjectCodes.length; i++) {
+      const limit = perSubject + (i < remainder ? 1 : 0);
+      if (limit <= 0) continue;
+      const rows = await baseQuery()
+        .where(and(eq(questions.isActive, true), eq(subjects.code, subjectCodes[i]!)))
+        .orderBy(asc(questions.createdAt), asc(questions.id))
+        .limit(limit);
+      result.push(...rows);
+    }
+    return result;
   }
 
   /**

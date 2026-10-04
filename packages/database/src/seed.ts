@@ -6,6 +6,8 @@ import {
   type DatabaseContext,
 } from "./client";
 import { runMigrations } from "./migrate";
+import { count } from "drizzle-orm";
+import { MODEL_TEST_DEFINITIONS } from "./model-tests";
 import {
   tenants,
   users,
@@ -13,6 +15,7 @@ import {
   chapters,
   topics,
   questions,
+  exams,
 } from "./schema/index";
 
 /**
@@ -95,14 +98,25 @@ export async function seed(ctx?: DatabaseContext): Promise<void> {
   const { getAllSeedQuestions } = await import("./seed-questions");
   const allSeedQuestions = getAllSeedQuestions();
 
+  // Idempotency guard: chapters/topics have no unique constraints, so re-running the
+  // seed against a persistent database would duplicate the whole question bank.
+  const [existingCount] = await db
+    .select({ value: count() })
+    .from(questions);
+  const alreadySeeded = Number(existingCount?.value ?? 0) >= allSeedQuestions.length;
+
   // Distinct chapters and topics mapping
   const chapterMap = new Map<string, number>(); // "subjectCode:chapterNumber" -> chapterId
   const topicMap = new Map<string, number>();   // "chapterId:topicName" -> topicId
 
-  console.log(`  → Seeding chapters, topics and ${allSeedQuestions.length} admission questions...`);
+  if (alreadySeeded) {
+    console.log(`  → Question bank already seeded (${existingCount?.value} questions). Skipping question insert.`);
+  } else {
+    console.log(`  → Seeding chapters, topics and ${allSeedQuestions.length} admission questions...`);
+  }
 
   // Insert chapters & topics dynamically
-  for (const q of allSeedQuestions) {
+  for (const q of alreadySeeded ? [] : allSeedQuestions) {
     const subjectId = subjectMap.get(q.subjectCode);
     if (!subjectId) continue;
 
@@ -189,6 +203,25 @@ export async function seed(ctx?: DatabaseContext): Promise<void> {
       universityTags: q.universityTags,
       isActive: true,
     });
+  }
+
+  // 5. Seed built-in Model Test exams (exam room relies on these rows)
+  console.log(`  → Seeding ${MODEL_TEST_DEFINITIONS.length} model test exams`);
+  for (const t of MODEL_TEST_DEFINITIONS) {
+    const values = {
+      title: t.title,
+      description: t.description,
+      examType: t.examType,
+      durationMinutes: t.durationMinutes,
+      totalMarks: t.questionCount.toFixed(2),
+      passMarks: (t.questionCount * 0.4).toFixed(2),
+      negativeMarkingRate: t.negativeMarkingRate,
+      isActive: true,
+    };
+    await db
+      .insert(exams)
+      .values({ id: t.id, tenantId: "DIRECT_B2C", ...values })
+      .onConflictDoUpdate({ target: exams.id, set: values });
   }
 
   console.log(`✓ Database seeding completed successfully (${allSeedQuestions.length} MCQ questions across 4 subjects seeded).`);
