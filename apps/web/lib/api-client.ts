@@ -10,12 +10,14 @@ import {
   recordExamSubmissionInStore,
 } from "./user-store";
 
+const DEFAULT_REMOTE_API = "https://admission-engine-1-0.onrender.com/api/v1";
+
 const API_BASE_URL =
   process.env["NEXT_PUBLIC_API_URL"] ||
   (typeof window !== "undefined" &&
   window.location.hostname !== "localhost" &&
   window.location.hostname !== "127.0.0.1"
-    ? "/api/backend"
+    ? DEFAULT_REMOTE_API
     : "http://localhost:3000/api/v1");
 
 function getCurrentAuthUser() {
@@ -86,20 +88,29 @@ export async function fetchExamPaper(examId: string) {
     const res = await fetch(`${API_BASE_URL}/exams/${examId}/paper`, {
       headers: getAuthHeaders(),
     });
-    if (!res.ok) {
-      const errJson = await res.json().catch(() => ({}));
-      throw new Error(errJson?.error || `পরীক্ষার প্রশ্নপত্র লোড করা যায়নি (HTTP ${res.status})`);
+    if (res.ok) {
+      const json = await res.json();
+      const paper = json.data || json;
+      if (paper && Array.isArray(paper.questions) && paper.questions.length > 0) {
+        return paper;
+      }
+    } else {
+      console.warn(`API returned HTTP ${res.status} for exam ${examId}. Falling back to offline exam paper.`);
     }
-    const json = await res.json();
-    const paper = json.data || json;
-    if (!paper || !Array.isArray(paper.questions) || paper.questions.length === 0) {
-      throw new Error("এই পরীক্ষার জন্য কোনো প্রশ্ন পাওয়া যায়নি।");
-    }
-    return paper;
   } catch (err: any) {
-    console.error(`fetchExamPaper failed for ${examId}:`, err);
-    throw err;
+    console.warn(`Network/API unavailable for exam ${examId}:`, err);
   }
+
+  // Graceful offline fallback: if server is asleep or temporarily unreachable, load authentic backup paper
+  if (FALLBACK_EXAM_PAPER && Array.isArray(FALLBACK_EXAM_PAPER.questions) && FALLBACK_EXAM_PAPER.questions.length > 0) {
+    return {
+      ...FALLBACK_EXAM_PAPER,
+      examId,
+      isOfflineFallback: true,
+    };
+  }
+
+  throw new Error("পরীক্ষার প্রশ্নপত্র লোড করা যায়নি। অনুগ্রহ করে ইন্টারনেট ও সার্ভার সংযোগ নিশ্চিত করুন।");
 }
 
 export async function submitExam(

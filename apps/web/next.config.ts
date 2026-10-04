@@ -1,11 +1,16 @@
 import type { NextConfig } from "next";
 
 function sanitizeTargetUrl(raw?: string): string {
-  if (!raw) return "http://127.0.0.1:3000";
+  const defaultTarget =
+    process.env["NODE_ENV"] === "production"
+      ? "https://admission-engine-1-0.onrender.com"
+      : "http://127.0.0.1:3000";
+
+  if (!raw) return defaultTarget;
 
   // 1. Remove leading/trailing spaces and quotes
   let cleaned = raw.trim().replace(/^['"`]+|['"`]+$/g, "").trim();
-  if (!cleaned) return "http://127.0.0.1:3000";
+  if (!cleaned) return defaultTarget;
 
   // 2. Ensure http:// or https:// protocol is present
   if (!cleaned.startsWith("http://") && !cleaned.startsWith("https://")) {
@@ -17,7 +22,7 @@ function sanitizeTargetUrl(raw?: string): string {
   cleaned = cleaned.replace(/\/api\/v1\/?$/, "");
   cleaned = cleaned.replace(/\/+$/, "");
 
-  return cleaned || "http://127.0.0.1:3000";
+  return cleaned || defaultTarget;
 }
 
 const nextConfig: NextConfig = {
@@ -27,7 +32,9 @@ const nextConfig: NextConfig = {
     const rawApiUrl =
       process.env["API_INTERNAL_URL"] ||
       process.env["NEXT_PUBLIC_API_URL"] ||
-      "http://127.0.0.1:3000";
+      (process.env["NODE_ENV"] === "production"
+        ? "https://admission-engine-1-0.onrender.com"
+        : "http://127.0.0.1:3000");
 
     const baseTarget = sanitizeTargetUrl(rawApiUrl);
 
